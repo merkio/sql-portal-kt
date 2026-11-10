@@ -37,13 +37,12 @@ common/          shared libraries, independent of the portal
   tls-config/        TLS options as JSSE objects (CA, client identity, insecure)
   prometheus-metrics/  Prometheus registry with histogram buckets
   template-render/   Freemarker template sets, content versions
-datasources/     SQL dialects, no I/O
-  sql-executor/      the dialect contract (Dialect, Cell, Statement, placeholder scanning)
-  sqlite-dialect/ postgres-dialect/ clickhouse-dialect/   one dialect each
+datasources/     the dialect contract, no I/O
+  sql-executor/      Dialect, Cell, Statement, placeholder scanning
 sql-portal/      the application
   domain/            model and ports, no web/database/identity-provider libraries
   application/       use cases: AuthService, ScriptService, the Metrics port
-  adapters/          port implementations: sql/, auth/, grants/, config/
+  adapters/          port implementations: sql/{postgres,sqlite,clickhouse}/ (dialect + I/O per engine), auth/, grants/, config/
   api/               everything Ktor: routes, sessions, middleware, views, templates
   deployment/        composition root (one Koin module per configured part) + the CLI
   testing/           in-memory fakes of the ports (test dependency only)
@@ -217,9 +216,9 @@ Parameters travel in the query string, so results are bookmarkable and shareable
   `database.migrations.dir` (default `migrations/sqlite`) in file-name order at startup, before `init_sql_files`.
   Nothing is applied implicitly, and a missing directory is a startup error. The demo configuration enables them
   explicitly to load its sample data.
-- Each database's SQL rules live in its own module under `datasources/`, built on the `sql-executor` contract
-  (`Dialect`, `Cell`, `Statement`). They do no I/O. Adding a database means a new dialect module plus a `QueryExecutor`
-  adapter in `sql-portal/adapters/src/main/kotlin/.../sql/`.
+- Each database is one package under `adapters/.../sql/` (`postgres`, `sqlite`, `clickhouse`): its dialect (SQL rules,
+  built on the `sql-executor` contract) and its `QueryExecutor`, both internal. `connectDatabase` is the only way in.
+  Adding a database means a new package there and a branch in `connectDatabase`.
 - ClickHouse: `:name` placeholders become typed server parameters (`{name:Int64}`, `{name:String}`, …), so
   values are never spliced into the SQL. Scripts run with `readonly=2` on the server, and each query gets a
   `max_execution_time` equal to the script timeout. Use a read-only ClickHouse user as well.
@@ -350,7 +349,12 @@ returns up to `max_rows` rows.
 | `script_runs_total` | counter | `script`, `outcome` |
 | `script_run_duration_seconds` | histogram | `script` |
 | `script_rows_returned_total` | counter | `script` |
+| `sql_execution_duration_seconds` | histogram | `script`, `purpose` (`table`, `page`, `count`, `chart`), `outcome` |
 | `build_info`, `auth_enabled` | gauge | `version` |
+
+`sql_execution_duration_seconds` times each statement in the database only (one script run can send several: count,
+page, chart). Plot a latency percentile with
+`histogram_quantile(0.95, sum by (le, script) (rate(sql_execution_duration_seconds_bucket[5m])))`.
 
 Logs go to stderr through Logback, as text or one JSON object per line (`observability.log_format = json`). Every request
 gets an `X-Request-Id` (taken from the request or generated) that appears in its log lines as `request_id`.

@@ -8,6 +8,17 @@ class RecordingMetrics : Metrics {
     val auth = CopyOnWriteArrayList<Pair<String, String>>()
     val scripts = CopyOnWriteArrayList<Triple<String, String, Int>>()
 
+    val sql = CopyOnWriteArrayList<Triple<String, String, String>>()
+
+    override fun sqlExecuted(
+        script: String,
+        purpose: String,
+        outcome: String,
+        duration: Duration,
+    ) {
+        sql += Triple(script, purpose, outcome)
+    }
+
     override fun authAttempt(
         provider: String,
         outcome: String,

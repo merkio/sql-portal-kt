@@ -12,10 +12,9 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.path
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
+import io.merkio.sqlportal.adapters.config.AuthRuntime
 import io.merkio.sqlportal.adapters.config.ConfigError
 import io.merkio.sqlportal.adapters.config.ConfigLoader
-import io.merkio.sqlportal.adapters.config.toRuntime
-import io.merkio.sqlportal.adapters.config.validate
 import io.merkio.sqlportal.adapters.sql.DatabaseSetupException
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
@@ -67,8 +66,8 @@ class CheckConfig(
     override fun help(context: Context) = "Validate the configuration and exit"
 
     override fun run() {
-        val loaded = failOnConfigError { ConfigLoader.fromPath(cli.config).also { it.validate() } }
-        echo("configuration OK (${loaded.app.scripts.size} scripts)")
+        val runtime = failOnConfigError { ConfigLoader.load(cli.config) }
+        echo("configuration OK (${runtime.scripts.size} scripts)")
     }
 }
 
@@ -121,11 +120,10 @@ private fun <T> failOnConfigError(block: () -> T): T =
     }
 
 private fun serve(config: Path) {
-    val loaded = failOnConfigError { ConfigLoader.fromPath(config) }
-    configureLogging(loaded.app.observability.logLevel, loaded.app.observability.logFormat)
-    val runtime = failOnConfigError { loaded.toRuntime() }
+    val runtime = failOnConfigError { ConfigLoader.load(config) }
+    configureLogging(runtime.observability.logLevel, runtime.observability.logFormat)
     val registry = portalRegistry()
-    describeAndInit(registry, VERSION, loaded.app.auth.enabled)
+    describeAndInit(registry, VERSION, runtime.auth !is AuthRuntime.Disabled)
     val module =
         try {
             runBlocking { buildApp(runtime, registry) }

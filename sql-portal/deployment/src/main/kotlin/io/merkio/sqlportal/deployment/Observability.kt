@@ -63,6 +63,20 @@ class PrometheusMetrics(
             .increment()
     }
 
+    override fun sqlExecuted(
+        script: String,
+        purpose: String,
+        outcome: String,
+        duration: Duration,
+    ) {
+        Timer
+            .builder("sql.execution.duration")
+            .description("Time spent executing SQL in the database, by script, purpose and outcome")
+            .tags("script", script, "purpose", purpose, "outcome", outcome)
+            .register(registry)
+            .record(duration.toJavaDuration())
+    }
+
     override fun scriptRun(
         script: String,
         outcome: String,

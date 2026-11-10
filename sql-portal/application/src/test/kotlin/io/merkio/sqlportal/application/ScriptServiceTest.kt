@@ -177,4 +177,83 @@ class ScriptServiceTest :
             svc.run(svc.authorize(principal(), "a"), emptyMap(), PageRequest(2, 25)).page.shouldBeNull()
             exec.requests shouldHaveSize 1
         }
+
+        test("every SQL statement is timed with its purpose and outcome") {
+            val s = script("a").copy(charts = listOf(ChartDefinition("c", ChartKind.BAR, "k", listOf("v"))))
+            val metrics = RecordingMetrics()
+            val svc =
+                service(
+                    listOf(s),
+                    FakeExecutor.returning(QueryResult(listOf("n"), listOf(listOf(Value.Int(5))))),
+                    metrics,
+                )
+            svc.run(svc.authorize(principal(), "a"), emptyMap(), PageRequest(1, 25))
+            metrics.sql.map { it.second } shouldBe listOf("count", "page", "chart")
+            metrics.sql.all { it.first == "a" && it.third == "success" } shouldBe true
+
+            val failing = RecordingMetrics()
+            val bad = service(listOf(script("a")), FakeExecutor.failing(QueryException.Timeout()), failing)
+            shouldThrow<ScriptException.Query> { bad.run(bad.authorize(principal(), "a"), emptyMap()) }
+            failing.sql shouldBe listOf(Triple("a", "table", "timeout"))
+        }
+
+        test("execute reports not found, forbidden, input, invalid and failed as outcomes") {
+            val needs =
+                script("n").copy(
+                    sql = "SELECT :n",
+                    params = listOf(ParamDefinition("n", ParamKind.INTEGER, required = true)),
+                )
+            val flag =
+                script("f")
+                    .copy(
+                        sql = "SELECT :b",
+                        params = listOf(ParamDefinition("b", ParamKind.BOOLEAN, default = "true")),
+                    ).validate()
+            val svc = service(listOf(script("a", "A", "x"), needs, flag), FakeExecutor.returning(keyValue))
+            svc.execute(principal(), "missing", emptyMap()) shouldBe ScriptOutcome.NotFound
+            svc.execute(principal(), "a", emptyMap()) shouldBe ScriptOutcome.Forbidden
+            svc
+                .execute(principal(), "n", emptyMap(), invocation = Invocation.FORM_OPENED)
+                .shouldBeInstanceOf<ScriptOutcome.NeedsInput>()
+            svc
+                .execute(principal(), "n", emptyMap(), invocation = Invocation.FORM_SENT)
+                .shouldBeInstanceOf<ScriptOutcome.Invalid>()
+                .errors shouldHaveSize 1
+            svc
+                .execute(principal("x"), "a", emptyMap(), invocation = Invocation.FORM_OPENED)
+                .shouldBeInstanceOf<ScriptOutcome.Ran>()
+            // An unchecked box is absent from a posted form; only then does it mean false.
+            svc
+                .execute(principal(), "f", emptyMap(), invocation = Invocation.FORM_SENT)
+                .shouldBeInstanceOf<ScriptOutcome.Ran>()
+                .input["b"] shouldBe "false"
+            svc
+                .execute(principal(), "f", emptyMap())
+                .shouldBeInstanceOf<ScriptOutcome.Ran>()
+                .input.keys
+                .shouldBeEmpty()
+
+            val failing = service(listOf(script("a")), FakeExecutor.failing(QueryException.Unavailable("down")))
+            failing
+                .execute(principal(), "a", emptyMap())
+                .shouldBeInstanceOf<ScriptOutcome.Failed>()
+                .error
+                .shouldBeInstanceOf<QueryException.Unavailable>()
+        }
+
+        test("execute clamps an out-of-range page size to the script's") {
+            val count = QueryResult(listOf("n"), listOf(listOf(Value.Int(60))))
+            val svc = service(listOf(script("a").copy(pageSize = 10)), FakeExecutor.returning(count))
+            val ran =
+                svc
+                    .execute(
+                        principal(),
+                        "a",
+                        emptyMap(),
+                        PageChoice(2, 100_000),
+                    ).shouldBeInstanceOf<ScriptOutcome.Ran>()
+            ran.run.page
+                .shouldNotBeNull()
+                .size shouldBe 10
+        }
     })

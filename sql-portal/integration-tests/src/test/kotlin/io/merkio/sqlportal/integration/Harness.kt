@@ -18,11 +18,11 @@ import io.ktor.http.parseQueryString
 import io.ktor.server.testing.TestApplication
 import io.merkio.sqlportal.adapters.config.ConfigLoader
 import io.merkio.sqlportal.adapters.config.RuntimeConfig
-import io.merkio.sqlportal.adapters.config.toRuntime
-import io.merkio.sqlportal.adapters.sql.SqliteExecutor
+import io.merkio.sqlportal.adapters.sql.connectDatabase
 import io.merkio.sqlportal.application.AuthMode
 import io.merkio.sqlportal.application.NoopMetrics
 import io.merkio.sqlportal.application.Providers
+import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.deployment.HealthProbe
 import io.merkio.sqlportal.deployment.Overrides
 import io.merkio.sqlportal.deployment.portalModule
@@ -44,7 +44,7 @@ val repoRoot: Path = Path.of(System.getProperty("sqlportal.repoRoot", "../.."))
 fun configText(name: String = "config.demo.conf") = repoRoot.resolve("config").resolve(name).readText()
 
 fun runtime(text: String = configText()): RuntimeConfig =
-    ConfigLoader.fromString(text, repoRoot.resolve("config"), emptyMap()).toRuntime()
+    ConfigLoader.load(text, repoRoot.resolve("config"), emptyMap())
 
 class Options(
     val authEnabled: Boolean = true,
@@ -134,7 +134,7 @@ class Harness private constructor(
                 wire(
                     rt,
                     Overrides(
-                        executor = SqliteExecutor.connect("sqlite::memory:", 1, 5.seconds),
+                        executor = connectDatabase("sqlite::memory:", 1, 5.seconds, TlsOptions()),
                         auth = auth,
                         grants = LocalGrants(rt.policy),
                         metrics = if (options.registry == null) NoopMetrics else null,

@@ -20,6 +20,18 @@ interface Metrics {
         duration: Duration,
         rows: Int,
     )
+
+    /**
+     * One SQL statement sent to the database. [purpose] is `table`, `page`,
+     * `count` or `chart`; [outcome] is `success`, `timeout` or `error`.
+     * Only the time spent in the database is measured.
+     */
+    fun sqlExecuted(
+        script: String,
+        purpose: String,
+        outcome: String,
+        duration: Duration,
+    )
 }
 
 /** Metrics sink that discards everything (tests, tooling). */
@@ -34,5 +46,12 @@ object NoopMetrics : Metrics {
         outcome: String,
         duration: Duration,
         rows: Int,
+    ) = Unit
+
+    override fun sqlExecuted(
+        script: String,
+        purpose: String,
+        outcome: String,
+        duration: Duration,
     ) = Unit
 }

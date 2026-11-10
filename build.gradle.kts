@@ -137,9 +137,6 @@ val checkArchitecture = tasks.register("checkArchitecture") {
             ":sql-portal:adapters",
             ":sql-portal:domain",
             ":datasources:sql-executor",
-            ":datasources:sqlite-dialect",
-            ":datasources:postgres-dialect",
-            ":datasources:clickhouse-dialect",
             ":common:tls-config",
         )
         forbid(":sql-portal:adapters", "io.ktor:ktor-server", "io.insert-koin", "org.freemarker")
@@ -150,7 +147,6 @@ val checkArchitecture = tasks.register("checkArchitecture") {
         within(":sql-portal:testing", ":sql-portal:domain")
         // Datasources and shared libraries know nothing of the portal.
         within(":datasources:sql-executor")
-        for (d in listOf("sqlite", "postgres", "clickhouse")) within(":datasources:$d-dialect", ":datasources:sql-executor")
         for (c in listOf("tls-config", "prometheus-metrics", "template-render")) within(":common:$c")
         // Deployment wires every layer, and nothing but tests depends on it or on the API.
         val wired = internal(":sql-portal:deployment")

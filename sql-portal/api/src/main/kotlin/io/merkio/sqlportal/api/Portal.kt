@@ -28,18 +28,16 @@ import io.ktor.server.sessions.clear
 import io.ktor.server.sessions.cookie
 import io.ktor.server.sessions.sessions
 import io.ktor.server.sessions.set
+import io.merkio.sqlportal.application.Invocation
 import io.merkio.sqlportal.application.OidcCallback
+import io.merkio.sqlportal.application.PageChoice
+import io.merkio.sqlportal.application.ScriptOutcome
 import io.merkio.sqlportal.application.ScriptRun
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.Principal
 import io.merkio.sqlportal.domain.access.User
-import io.merkio.sqlportal.domain.query.PageRequest
 import io.merkio.sqlportal.domain.query.QueryException
 import io.merkio.sqlportal.domain.scripts.ChartOutcome
-import io.merkio.sqlportal.domain.scripts.MAX_PAGE_SIZE
-import io.merkio.sqlportal.domain.scripts.ParamKind
-import io.merkio.sqlportal.domain.scripts.ScriptDefinition
-import io.merkio.sqlportal.domain.scripts.ScriptException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -328,62 +326,72 @@ private class Handlers(
         with(ctx) {
             val principal = webPrincipal() ?: return
             val nav = nav(principal)
-            val name = call.parameters["name"].orEmpty()
-            val authorized =
-                try {
-                    state.scripts.authorize(principal, name)
-                } catch (_: ScriptException.Forbidden) {
-                    val body = messageBody("Access denied", "You do not have permission to run this script.")
-                    return html(HttpStatusCode.Forbidden, "Forbidden", nav, body)
-                } catch (_: ScriptException) {
-                    return html(
+            val params = queryParams(this)
+            val sent = "_run" in params
+            val outcome =
+                state.scripts.execute(
+                    principal,
+                    call.parameters["name"].orEmpty(),
+                    params,
+                    PageChoice(params["_page"]?.toIntOrNull() ?: 1, params["_size"]?.toIntOrNull()),
+                    if (sent) Invocation.FORM_SENT else Invocation.FORM_OPENED,
+                )
+            when (outcome) {
+                ScriptOutcome.Forbidden ->
+                    html(
+                        HttpStatusCode.Forbidden,
+                        "Forbidden",
+                        nav,
+                        messageBody("Access denied", "You do not have permission to run this script."),
+                    )
+                ScriptOutcome.NotFound ->
+                    html(
                         HttpStatusCode.NotFound,
                         "Not found",
                         nav,
                         messageBody("Script not found", "There is no script with that name."),
                     )
+                is ScriptOutcome.NeedsInput ->
+                    html(
+                        HttpStatusCode.OK,
+                        outcome.script.title,
+                        nav,
+                        scriptBody(outcome.script, outcome.input, emptyList(), null, null),
+                    )
+                is ScriptOutcome.Ran -> {
+                    val run = outcome.run
+                    html(
+                        HttpStatusCode.OK,
+                        run.script.title,
+                        nav,
+                        scriptBody(run.script, outcome.input, emptyList(), run, null),
+                        run.charts.any { it is ChartOutcome.Drawn },
+                    )
                 }
-            val script = authorized.script
-            val params = queryParams(this)
-            if ("_run" !in params && !script.runsWithoutInput) {
-                return html(HttpStatusCode.OK, script.title, nav, scriptBody(script, params, emptyList(), null, null))
-            }
-            normalizeCheckboxes(script, params)
-            val page =
-                PageRequest(
-                    number = params["_page"]?.toIntOrNull() ?: 1,
-                    size = params["_size"]?.toIntOrNull()?.takeIf { it in 1..MAX_PAGE_SIZE } ?: script.pageSize,
-                )
-            try {
-                val run = state.scripts.run(authorized, params, page)
-                val withCharts = run.charts.any { it is ChartOutcome.Drawn }
-                html(
-                    HttpStatusCode.OK,
-                    script.title,
-                    nav,
-                    scriptBody(script, params, emptyList(), run, null),
-                    withCharts,
-                )
-            } catch (e: ScriptException.InvalidParams) {
-                val body = scriptBody(script, params, e.errors, null, "Please correct the highlighted fields.")
-                html(HttpStatusCode.UnprocessableEntity, script.title, nav, body)
-            } catch (e: ScriptException.Query) {
-                val (status, message) = queryErrorMessage(e.error, script.timeoutSecs)
-                html(status, script.title, nav, scriptBody(script, params, emptyList(), null, message))
+                is ScriptOutcome.Invalid ->
+                    html(
+                        HttpStatusCode.UnprocessableEntity,
+                        outcome.script.title,
+                        nav,
+                        scriptBody(
+                            outcome.script,
+                            outcome.input,
+                            outcome.errors,
+                            null,
+                            "Please correct the highlighted fields.",
+                        ),
+                    )
+                is ScriptOutcome.Failed -> {
+                    val (status, message) = queryErrorMessage(outcome.error, outcome.script.timeoutSecs)
+                    html(
+                        status,
+                        outcome.script.title,
+                        nav,
+                        scriptBody(outcome.script, outcome.input, emptyList(), null, message),
+                    )
+                }
             }
         }
-
-    /**
-     * HTML checkboxes are absent from submissions when unchecked; once the form
-     * was submitted, absence therefore means `false`.
-     */
-    private fun normalizeCheckboxes(
-        script: ScriptDefinition,
-        params: MutableMap<String, String>,
-    ) {
-        if ("_run" !in params) return
-        script.params.filter { it.kind == ParamKind.BOOLEAN }.forEach { params.putIfAbsent(it.name, "false") }
-    }
 
     // ----------------------------------------------------------------- API
 
@@ -429,34 +437,37 @@ private class Handlers(
     suspend fun apiRun(ctx: RoutingContext): Unit =
         with(ctx) {
             val principal = apiPrincipal() ?: return
-            val authorized =
-                try {
-                    state.scripts.authorize(principal, call.parameters["name"].orEmpty())
-                } catch (_: ScriptException.NotFound) {
-                    return call.respondJson(error("script not found"), HttpStatusCode.NotFound)
-                } catch (_: ScriptException) {
-                    return call.respondJson(error("permission denied"), HttpStatusCode.Forbidden)
-                }
-            try {
-                call.respondJson(runJson(state.scripts.run(authorized, queryParams(this))))
-            } catch (e: ScriptException.InvalidParams) {
-                val body =
-                    buildJsonObject {
-                        put("error", "invalid parameters")
-                        putJsonArray("fields") {
-                            e.errors.forEach {
-                                addJsonObject {
-                                    put("param", it.param).also { _ ->
+            when (
+                val outcome =
+                    state.scripts.execute(
+                        principal,
+                        call.parameters["name"].orEmpty(),
+                        queryParams(this),
+                    )
+            ) {
+                ScriptOutcome.NotFound -> call.respondJson(error("script not found"), HttpStatusCode.NotFound)
+                ScriptOutcome.Forbidden -> call.respondJson(error("permission denied"), HttpStatusCode.Forbidden)
+                is ScriptOutcome.NeedsInput -> call.respondJson(error("script needs input"), HttpStatusCode.BadRequest)
+                is ScriptOutcome.Ran -> call.respondJson(runJson(outcome.run))
+                is ScriptOutcome.Invalid ->
+                    call.respondJson(
+                        buildJsonObject {
+                            put("error", "invalid parameters")
+                            putJsonArray("fields") {
+                                outcome.errors.forEach {
+                                    addJsonObject {
+                                        put("param", it.param)
                                         put("message", it.message)
                                     }
                                 }
                             }
-                        }
-                    }
-                call.respondJson(body, HttpStatusCode.UnprocessableEntity)
-            } catch (e: ScriptException.Query) {
-                val (status, message) = queryErrorMessage(e.error, authorized.script.timeoutSecs)
-                call.respondJson(error(message), status)
+                        },
+                        HttpStatusCode.UnprocessableEntity,
+                    )
+                is ScriptOutcome.Failed -> {
+                    val (status, message) = queryErrorMessage(outcome.error, outcome.script.timeoutSecs)
+                    call.respondJson(error(message), status)
+                }
             }
         }
 

@@ -6,7 +6,6 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import io.merkio.sqlportal.adapters.config.AuthRuntime
 import io.merkio.sqlportal.adapters.config.ConfigLoader
-import io.merkio.sqlportal.adapters.config.toRuntime
 import java.nio.file.Path
 import kotlin.io.path.readText
 
@@ -18,7 +17,7 @@ class ShippedConfigTest :
         fun load(
             name: String,
             env: Map<String, String> = emptyMap(),
-        ) = ConfigLoader.fromString(dir.resolve(name).readText(), dir, env).toRuntime()
+        ) = ConfigLoader.load(dir.resolve(name).readText(), dir, env)
 
         test("the demo configuration is valid and has auth switched off") {
             val rt = load("config.demo.conf")

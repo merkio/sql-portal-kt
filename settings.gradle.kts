@@ -24,11 +24,8 @@ include(":common:tls-config")
 include(":common:prometheus-metrics")
 include(":common:template-render")
 
-// SQL dialects (no I/O).
+// The dialect contract (no I/O).
 include(":datasources:sql-executor")
-include(":datasources:sqlite-dialect")
-include(":datasources:postgres-dialect")
-include(":datasources:clickhouse-dialect")
 
 // The application.
 include(":sql-portal:domain")

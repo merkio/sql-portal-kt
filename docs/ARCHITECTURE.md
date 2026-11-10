@@ -17,10 +17,10 @@ rejects it.
 
 ```
 common/                         datasources/                     sql-portal/
-  tls-config                      sql-executor  ◄──┐               domain ──────────► sql-executor
-  template-render                 sqlite-dialect ──┤               application ─────► domain
-  prometheus-metrics              postgres-dialect ┤               adapters ────────► domain, sql-executor, *-dialect, tls-config
-                                  clickhouse-dialect┘              api ─────────────► application (+ domain), template-render
+  tls-config                      sql-executor                     domain ──────────► sql-executor
+  template-render                                                  application ─────► domain
+  prometheus-metrics                                               adapters ────────► domain, sql-executor, tls-config
+                                                                   api ─────────────► application (+ domain), template-render
                                                                    deployment ──────► all of the above, prometheus-metrics
                                                                    testing (tests) ─► domain
                                                                    integration-tests ► everything (tests only)
@@ -36,7 +36,6 @@ common/                         datasources/                     sql-portal/
 | `sql-portal:testing` | in-memory fakes of the ports | `domain`; only as a test dependency |
 | `sql-portal:integration-tests` | integration and end-to-end tests | everything |
 | `datasources:sql-executor` | dialect contract (`Dialect`, `Cell`, `Statement`, placeholder scanning), no I/O | — |
-| `datasources:*-dialect` | one dialect each, no I/O | `sql-executor` |
 | `common:prometheus-metrics` | Prometheus registry with caller-supplied histogram buckets | — |
 | `common:tls-config` | `TlsOptions` as JSSE objects (trust, client identity, `SSLContext`) | — |
 | `common:template-render` | Freemarker template sets (HTML autoescaping for `.ftlh`), `contentVersion` for cache busting | — |
@@ -63,17 +62,17 @@ implementation does I/O.
 | class | use case |
 |---|---|
 | `AuthService` | the master `enabled` switch, LDAP login, the OIDC flow (state check), principal resolution (fail closed when grants are unavailable) |
-| `ScriptService` | list / authorize / run with permission checks, parameter binding, paging, charts, metrics; `AuthorizedScript` can only be created by `authorize` |
-| `Metrics` | the port the use cases report to (auth attempts, script runs), and `NoopMetrics` |
+| `ScriptService` | list, and `execute`: find, authorize, bind, page, run and chart in one call that returns a `ScriptOutcome` (`Ran`, `NotFound`, `Forbidden`, `NeedsInput`, `Invalid`, `Failed`); the HTML page and the JSON API only render it. Every SQL statement is timed (`sql_execution_duration_seconds`). |
+| `Metrics` | the port the use cases report to (auth attempts, script runs, SQL execution time), and `NoopMetrics` |
 
 ## Adapters (`sql-portal/adapters`)
 
 | package | implements |
 |---|---|
-| `sql` | `QueryExecutor` for SQLite and PostgreSQL (JDBC, HikariCP, timeouts cancel the statement) and ClickHouse (HTTP via the Ktor client); `connectDatabase` picks one by URL scheme; migrations and init files; `PortalSslFactory` gives the PostgreSQL driver the portal's TLS options |
+| `sql` | `QueryExecutor` per engine, each package holding its dialect and I/O: SQLite and PostgreSQL (JDBC, HikariCP, timeouts cancel the statement) and ClickHouse (HTTP via the Ktor client); `connectDatabase` picks one by URL scheme; migrations and init files; `PortalSslFactory` gives the PostgreSQL driver the portal's TLS options |
 | `auth` | `LdapAuthenticator` (UnboundID), `OidcAdapter` (discovery, PKCE, ID-token verification with Nimbus JOSE) |
 | `grants` | `RemoteGrants` (HTTP grants service) and `CachedGrants` (TTL cache that bridges short outages) |
-| `config` | HOCON loading with strict key checks (`Section`), the file model, validation and mapping to `RuntimeConfig` |
+| `config` | `ConfigLoader.load` is the interface: HOCON parsing with strict key checks, validation and TLS resolution, returning `RuntimeConfig`. The file model is internal. |
 | `http` | the outbound HTTP client: no redirects, TLS options applied |
 
 ## API (`sql-portal/api`)
@@ -105,8 +104,8 @@ The only module that knows concrete adapters. Each file configures one part of t
 ```
 GET /scripts/x?_run=1&p=v
   → session cookie → User → AuthService.principal (GrantSource) | redirect /login
-  → ScriptService.authorize: catalog lookup, access rule (404 / 403)
-  → ScriptService.run: bindParams (validation → 422) → count + page queries → QueryExecutor (timeout, max_rows) → charts
+  → ScriptService.execute: catalog lookup, access rule (404 / 403)
+     bindParams (validation → 422) → count + page queries → QueryExecutor (timeout, max_rows) → charts
   → views (escaped HTML; chart specs as JSON safe for <script>) → security headers → HTTP metrics
 ```
 
@@ -128,8 +127,8 @@ Tests are written at the lowest layer that can express the behaviour:
 
 ## Extension points
 
-- **Another database**: a dialect module in `datasources/` implementing `Dialect`, plus a `QueryExecutor` adapter in
-  `adapters/.../sql/` selected in `connectDatabase`. Add a container test.
+- **Another database**: a package in `adapters/.../sql/` with its `Dialect` and `QueryExecutor` (both internal),
+  selected in `connectDatabase`. Add a container test.
 - **Another identity provider**: a port next to `CredentialAuthenticator`/`OidcProvider` in `domain/access`, an adapter
   in `adapters/.../auth/`, wiring in `deployment/Auth.kt`.
 - **Persistent sessions**: replace `ExpiringMemoryStorage` in `api/.../Portal.kt` with a Ktor `SessionStorage` backed by

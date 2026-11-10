@@ -7,9 +7,6 @@ dependencies {
     api(projects.sqlPortal.domain)
     api(projects.common.tlsConfig)
     implementation(projects.datasources.sqlExecutor)
-    implementation(projects.datasources.sqliteDialect)
-    implementation(projects.datasources.postgresDialect)
-    implementation(projects.datasources.clickhouseDialect)
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.slf4j.api)

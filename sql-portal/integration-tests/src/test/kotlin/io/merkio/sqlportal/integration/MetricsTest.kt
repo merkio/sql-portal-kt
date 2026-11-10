@@ -22,7 +22,16 @@ class MetricsTest :
             PrometheusMetrics(registry).authAttempt("ldap", "invalid_credentials")
             PrometheusMetrics(registry).scriptRun("monthly_trend", "success", 5.milliseconds, 6)
 
+            PrometheusMetrics(registry).sqlExecuted("monthly_trend", "table", "success", 30.milliseconds)
+
             val text = registry.scrape()
+            // SQL execution time is a histogram: buckets, sum and count per script, purpose and outcome.
+            text shouldContain
+                """sql_execution_duration_seconds_bucket{outcome="success",purpose="table",script="monthly_trend",le="0.05"} 1"""
+            text shouldContain
+                """sql_execution_duration_seconds_bucket{outcome="success",purpose="table",script="monthly_trend",le="0.025"} 0"""
+            text shouldContain "sql_execution_duration_seconds_count"
+            text shouldContain "sql_execution_duration_seconds_sum"
             text shouldContain """http_requests_total{method="GET",path="/healthz",status="200"} 1"""
             text shouldContain """path="/scripts/{name}""""
             text shouldContain "http_request_duration_seconds_bucket"
