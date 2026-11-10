@@ -1,6 +1,6 @@
 // TLS options for every outbound connection, as JSSE objects. No portal code.
 plugins {
-    id("sqlportal.kotlin-library")
+    id("sqlportal.kotlin-serialization")
 }
 
 dependencies {

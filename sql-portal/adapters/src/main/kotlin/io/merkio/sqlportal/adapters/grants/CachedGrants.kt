@@ -1,10 +1,10 @@
 package io.merkio.sqlportal.adapters.grants
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.GrantSource
 import io.merkio.sqlportal.domain.access.Grants
 import io.merkio.sqlportal.domain.access.User
-import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.TimeMark
@@ -40,7 +40,7 @@ class CachedGrants(
             inner.grantsFor(user).also { store(key, it) }
         } catch (e: AuthException) {
             if (cached == null || cached.fetched.elapsedNow() >= staleLimit) throw e
-            log.warn("grant source unavailable for {}; using cached grants: {}", user.subject, e.message)
+            log.warn { "grant source unavailable for ${user.subject}; using cached grants: ${e.message}" }
             cached.grants
         }
     }
@@ -57,7 +57,7 @@ class CachedGrants(
     }
 
     private companion object {
-        val log = LoggerFactory.getLogger(CachedGrants::class.java)
+        private val log = KotlinLogging.logger {}
 
         /** Upper bound on cached identities; the cache is cleared when it is full. */
         const val MAX_ENTRIES = 10_000

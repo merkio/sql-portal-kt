@@ -32,8 +32,8 @@ fun JacocoReportBase.coverageInputs() {
     classDirectories.from(
         coveredProjects.map { p ->
             p.layout.buildDirectory.dir("classes/kotlin/main").map { dir ->
-                // The CLI entry point is exercised by the container tests, not unit tests.
-                fileTree(dir) { exclude("**/deployment/MainKt*", "**/deployment/Cli*", "**/deployment/Serve*") }
+                // The entry point is exercised by the container tests, not unit tests.
+                fileTree(dir) { exclude("**/deployment/MainKt*") }
             }
         },
     )
@@ -122,14 +122,14 @@ val checkArchitecture = tasks.register("checkArchitecture") {
             arrayOf(
                 "io.ktor", "com.zaxxer", "org.postgresql", "org.xerial", "com.unboundid", "com.nimbusds",
                 "io.micrometer", "org.freemarker", "io.insert-koin", "ch.qos.logback", "com.typesafe",
-                "org.bouncycastle", "org.slf4j", "org.jetbrains.kotlinx:kotlinx-coroutines",
+                "org.bouncycastle", "org.slf4j", "io.github.oshai", "org.jetbrains.kotlinx:kotlinx-coroutines",
             )
 
         // Domain: model and ports only.
         within(":sql-portal:domain", ":datasources:sql-executor")
         forbid(":sql-portal:domain", *infrastructure)
         // Application: use cases over the domain; it may log and suspend, nothing more.
-        val applicationMayUse = setOf("org.slf4j", "org.jetbrains.kotlinx:kotlinx-coroutines")
+        val applicationMayUse = setOf("io.github.oshai", "org.jetbrains.kotlinx:kotlinx-coroutines")
         within(":sql-portal:application", ":sql-portal:domain")
         forbid(":sql-portal:application", *(infrastructure.toSet() - applicationMayUse).toTypedArray())
         // Adapters implement domain ports over the datasources; no HTTP server.
@@ -137,9 +137,12 @@ val checkArchitecture = tasks.register("checkArchitecture") {
             ":sql-portal:adapters",
             ":sql-portal:domain",
             ":datasources:sql-executor",
+            ":datasources:sqlite-executor",
+            ":datasources:postgres-executor",
+            ":datasources:clickhouse-executor",
             ":common:tls-config",
         )
-        forbid(":sql-portal:adapters", "io.ktor:ktor-server", "io.insert-koin", "org.freemarker")
+        forbid(":sql-portal:adapters", "io.ktor:ktor-server", "io.insert-koin", "org.freemarker", "com.typesafe")
         // The API knows use cases, not adapters or drivers.
         within(":sql-portal:api", ":sql-portal:domain", ":sql-portal:application", ":common:template-render")
         forbid(":sql-portal:api", "com.zaxxer", "org.postgresql", "org.xerial", "com.unboundid", "com.nimbusds", "io.insert-koin")
@@ -147,6 +150,15 @@ val checkArchitecture = tasks.register("checkArchitecture") {
         within(":sql-portal:testing", ":sql-portal:domain")
         // Datasources and shared libraries know nothing of the portal.
         within(":datasources:sql-executor")
+        within(":datasources:jdbc-executor", ":datasources:sql-executor")
+        for (d in listOf("sqlite", "postgres")) {
+            within(":datasources:$d-executor", ":datasources:sql-executor", ":datasources:jdbc-executor", ":common:tls-config")
+        }
+        within(":datasources:clickhouse-executor", ":datasources:sql-executor", ":common:tls-config")
+        // Datasources know no application framework and keep no pool library.
+        for (d in listOf("sql", "jdbc", "sqlite", "postgres", "clickhouse")) {
+            forbid(":datasources:$d-executor", "io.ktor", "io.insert-koin", "com.zaxxer", "com.typesafe")
+        }
         for (c in listOf("tls-config", "prometheus-metrics", "template-render")) within(":common:$c")
         // Deployment wires every layer, and nothing but tests depends on it or on the API.
         val wired = internal(":sql-portal:deployment")

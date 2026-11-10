@@ -23,28 +23,31 @@ developed test-first. Differences from the Rust version are listed [at the end](
 - **Pages**: `/` lists the scripts you may run; `/scripts/<name>` shows the form and results.
   JSON API under `/api/scripts`.
 - **Operations**: `/healthz` (liveness), `/readyz` (readiness, checks the database),
-  `/metrics` (Prometheus), structured logs (text or JSON) with request ids.
-- **Docker image** (distroless, non-root, built-in `HEALTHCHECK`) and a JVM distribution for every OS.
+  `/metrics` (Prometheus), logs as text locally and as JSON (with MDC, app and environment) in the cluster.
+- **Docker image** (distroless, non-root) and a JVM distribution for every OS.
 
 ## Project structure
 
 One Gradle build (Kotlin DSL) with an included build for the conventions, in three groups:
 
 ```
-build-logic/     included build: convention plugins (Kotlin, ktlint, detekt, JaCoCo)
+build-plugins/   included build: convention plugins (Kotlin, ktlint, detekt, JaCoCo)
 gradle/libs.versions.toml   every library and plugin version
 common/          shared libraries, independent of the portal
   tls-config/        TLS options as JSSE objects (CA, client identity, insecure)
   prometheus-metrics/  Prometheus registry with histogram buckets
   template-render/   Freemarker template sets, content versions
-datasources/     the dialect contract, no I/O
-  sql-executor/      Dialect, Cell, Statement, placeholder scanning
+datasources/     SQL execution per database, reusable without the portal
+  sql-executor/      the contract: SqlExecutor, SqlQuery/SqlResult, Dialect, Cell, placeholder scanning
+  jdbc-executor/     plain JDBC connections opened once and reused, statement timeouts, error mapping
+  sqlite-executor/ postgres-executor/ clickhouse-executor/   dialect + executor of one database each
 sql-portal/      the application
   domain/            model and ports, no web/database/identity-provider libraries
   application/       use cases: AuthService, ScriptService, the Metrics port
-  adapters/          port implementations: sql/{postgres,sqlite,clickhouse}/ (dialect + I/O per engine), auth/, grants/, config/
+  adapters/          port implementations: sql/ (QueryExecutor over the datasources), auth/, grants/
   api/               everything Ktor: routes, sessions, middleware, views, templates
-  deployment/        composition root (one Koin module per configured part) + the CLI
+  deployment/        composition root + the CLI (Main.kt); one package per part: config, database, access,
+                     auth, scripts, health, observability, wiring; resources: config/, logback.xml
   testing/           in-memory fakes of the ports (test dependency only)
   integration-tests/ in-process, database and Docker-image tests
 ```
@@ -56,53 +59,80 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layer rules.
 Requirements: JDK 21 (the Gradle wrapper fetches everything else).
 
 ```bash
-# demo: authentication disabled, in-memory SQLite with generated sales data
-make run          # ./gradlew :sql-portal:deployment:run --args="--config $PWD/config/config.demo.conf"
+# APP_ENV=local (default): authentication disabled, in-memory SQLite with generated sales data
+make run          # ./gradlew :sql-portal:deployment:run
 # open http://localhost:8080
 ```
 
 ```bash
-# or with Docker (the image defaults to the demo config)
+# or with Docker (the image defaults to APP_ENV=local)
 docker build -t script-portal .
 docker run --rm -p 8080:8080 script-portal
-
-# portal + Prometheus
 docker compose up --build
 ```
 
-> ⚠️ The bundled **demo config disables authentication**. Never expose it beyond a trusted machine.
+> ⚠️ The **local environment disables authentication**. Never expose it beyond a trusted machine.
 
 The distribution (`make dist`, or the archive attached to a release) contains `bin/script-portal`
-(and `bin/script-portal.bat` for Windows):
+(and `bin/script-portal.bat` for Windows). It takes no arguments; everything comes from environment variables:
 
 ```bash
-script-portal --config my.conf check-config    # validate configuration and exit
-script-portal --config my.conf serve           # run (default)
-script-portal healthcheck --addr 127.0.0.1:8080 --path /readyz
+APP_ENV=prod DATABASE_URL=... script-portal                  # run the prod environment
+SCRIPT_PORTAL_CONFIG=/etc/portal/extra.conf script-portal    # with an extra HOCON file on top
 ```
 
-`SCRIPT_PORTAL_CONFIG` (config path, default `config/config.conf`) and `SCRIPT_PORTAL_BIND` (listen
-address) may be set as environment variables. `JAVA_OPTS` passes options to the JVM.
+| variable | meaning |
+|---|---|
+| `APP_ENV` | the bundled environment: `local` (default), `k8s`, `uat`, `prod` |
+| `SCRIPT_PORTAL_CONFIG` | optional HOCON file applied on top of the bundled configuration |
+| `SCRIPT_PORTAL_BIND` | listen address, default `0.0.0.0:8080` |
+| `JAVA_OPTS` | options for the JVM |
+
+An invalid configuration or an unreachable database stops the process with exit status 1 and the reason in the log.
+In Kubernetes, point the liveness probe at `GET /healthz` and the readiness probe at `GET /readyz`.
 
 ## Configuration
 
-The configuration is [HOCON](https://github.com/lightbend/config/blob/main/HOCON.md).
-See [`config/config.example.conf`](config/config.example.conf) for the complete, commented reference and
-[`config/config.demo.conf`](config/config.demo.conf) for a runnable example.
+The configuration is [HOCON](https://github.com/lightbend/config/blob/main/HOCON.md), bundled in the application under
+`sql-portal/deployment/src/main/resources/config/`. It is loaded in layers, the first one winning:
 
-**Environment.** Write the default, then an optional override from the environment on the next line;
-booleans and numbers work too:
+1. an optional file named by `SCRIPT_PORTAL_CONFIG`,
+2. `config/env/<APP_ENV>.conf`: the environment,
+3. [`config/default.conf`](sql-portal/deployment/src/main/resources/config/default.conf): every setting with its default
+   and a comment; the scripts are in `config/scripts.conf`, included from it.
+
+| `APP_ENV` | file | what it sets |
+|---|---|---|
+| `local` (default) | `env/local.conf` | auth off, in-memory SQLite with the demo migrations, text logs |
+| `k8s` | `env/k8s.conf` | `DATABASE_URL` required, auth on, secure cookies, no migrations, JSON logs |
+| `uat` | `env/uat.conf` | `k8s` plus a UAT title |
+| `prod` | `env/prod.conf` | `k8s` |
+
+In the cluster, sign-in is switched on by variables: `LDAP_ENABLED=true` with `LDAP_URL`, `LDAP_BIND_DN`,
+`LDAP_BIND_PASSWORD`, `LDAP_BASE_DN`, and/or `OIDC_ENABLED=true` with `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`,
+`OIDC_CLIENT_SECRET`. `default.conf` lists every variable it reads.
+
+Each section is decoded into a data class that lives next to the code that uses it: `server`/`ui` in `api`,
+`database` in `adapters.sql`, `auth.ldap`/`auth.oidc` in `adapters.auth`, `access.external` in `adapters.grants`, `tls`
+in `common.tls`, and `auth`, `access`, `observability`, `scripts` in the matching `deployment` packages.
+
+**Environment variables.** Write the default, then an optional override on the next line; booleans and numbers work
+too. Variables are also substituted inside strings:
 
 ```hocon
 auth {
   enabled = true
   enabled = ${?AUTH_ENABLED}
 }
-database.url = ${DATABASE_URL}     # without "?" the variable is required
+database.url = ${DATABASE_URL}                              # without "?" the variable is required
+database.url = "postgres://${DB_USER}:${DB_PASSWORD}@db/${DB_NAME:-portal}"   # inside strings
+ui.title = "Portal ${?STAGE}"                               # ${?VAR} is empty when unset; $${ is a literal ${
 ```
 
-Values in quotes, including SQL in triple quotes, are never expanded. Quote values that contain `:` or `//`,
-e.g. `"sqlite::memory:"` and URLs. **Unknown keys are rejected**, so a typo is reported instead of ignored.
+Script SQL (`sql`) is never expanded. Quote values that contain `:` or `//`, e.g. `"sqlite::memory:"` and URLs.
+**Unknown keys are rejected**, so a typo is reported with its path instead of ignored. Relative file paths (`sql_file`,
+`migrations.dir`, `init_sql_files`, certificates) are looked up next to the `SCRIPT_PORTAL_CONFIG` file, then among the bundled
+files.
 
 ### Authentication
 
@@ -210,15 +240,21 @@ Parameters travel in the query string, so results are bookmarkable and shareable
 - `database.read_only_scripts = true` (default) accepts only a single `SELECT`/`WITH` statement without write
   keywords. It is a safety net — **also use a read-only database account**.
 - Supported URLs: `sqlite:` (`sqlite::memory:`, `sqlite:file.db`, `sqlite:///abs/file.db?mode=ro`) and
-  `postgres://user:pass@host:5432/db` over JDBC with a HikariCP pool, and `clickhouse://` / `clickhouses://`
+  `postgres://user:pass@host:5432/db` over plain JDBC connections, and `clickhouse://` / `clickhouses://`
   (HTTP interface, port 8123 / 8443 by default), e.g. `clickhouse://reader:secret@ch.internal:8123/analytics`.
 - **Migrations are off by default.** Set `database.migrations.enabled = true` to apply the `*.sql` files of
   `database.migrations.dir` (default `migrations/sqlite`) in file-name order at startup, before `init_sql_files`.
   Nothing is applied implicitly, and a missing directory is a startup error. The demo configuration enables them
   explicitly to load its sample data.
-- Each database is one package under `adapters/.../sql/` (`postgres`, `sqlite`, `clickhouse`): its dialect (SQL rules,
-  built on the `sql-executor` contract) and its `QueryExecutor`, both internal. `connectDatabase` is the only way in.
-  Adding a database means a new package there and a branch in `connectDatabase`.
+- **Connections are reused.** JDBC connections are opened with the driver directly (no pool library), at most
+  `database.max_connections` of them, and kept open for every following statement. The first one is opened at startup,
+  so an unreachable database fails fast. A connection idle for more than 30 s is validated before use, and a broken one
+  is replaced. A query waits at most `acquire_timeout_secs` for a free connection. ClickHouse reuses one HTTP client
+  and its keep-alive connections.
+- Each database is a module under `datasources/` (`sqlite-executor`, `postgres-executor`, `clickhouse-executor`): its
+  dialect and a `SqlExecutor`, built on the `sql-executor` contract and usable without the portal. `connectDatabase` in
+  `adapters` picks one by URL scheme and adapts it to the domain's `QueryExecutor`. Adding a database means a new
+  module there and a branch in `connectDatabase`.
 - ClickHouse: `:name` placeholders become typed server parameters (`{name:Int64}`, `{name:String}`, …), so
   values are never spliced into the SQL. Scripts run with `readonly=2` on the server, and each query gets a
   `max_execution_time` equal to the script timeout. Use a read-only ClickHouse user as well.
@@ -234,7 +270,7 @@ Parameters travel in the query string, so results are bookmarkable and shareable
   tls {
     ca_file = /etc/portal-tls/ca.crt     # CA, or the server's own self-signed certificate
     cert_file = /etc/portal-tls/tls.crt  # optional client certificate (mutual TLS)
-    key_file = /etc/portal-tls/tls.key   # its private key (PEM: PKCS#8, PKCS#1 or SEC1)
+    key_file = /etc/portal-tls/tls.key   # its private key, see below for the format
     insecure = false                     # true skips verification; development only
   }
   ```
@@ -245,11 +281,16 @@ Parameters travel in the query string, so results are bookmarkable and shareable
 - **Kubernetes:** mount a `kubernetes.io/tls` secret (`tls.crt`, `tls.key`) plus the CA (for example cert-manager's
   `ca.crt`) into the pod, and point the three paths at it. Relative paths resolve against the config file.
 - `cert_file` needs `key_file`, and needs `ca_file` (or `insecure`) so the server is still verified.
+- PostgreSQL takes the options as the driver's own settings: `ca_file` → `sslrootcert` with `sslmode=verify-full`
+  (only that CA is trusted), `insecure` → `sslmode=require`, `cert_file`/`key_file` → `sslcert`/`sslkey`. The driver
+  reads the client key as PKCS#8 DER (`.pk8`) or PKCS#12 (`.p12`), not PEM:
+  `openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt -in tls.key -out tls.pk8`. LDAP, OIDC, ClickHouse and the
+  grants service read PEM keys (PKCS#8, PKCS#1 or SEC1).
 
 ## Try it locally: the showcase
 
-The demo configuration enables the SQLite migrations explicitly (`database.migrations`), so the sample schema and data are
-created at startup in memory. Nothing else is needed: `make run`, then open http://localhost:8080.
+The `local` environment enables the SQLite migrations explicitly (`database.migrations`), so the sample schema and data
+are created at startup in memory. Nothing else is needed: `make run`, then open http://localhost:8080.
 
 The `Showcase` scripts cover every way the page presents selected data:
 
@@ -286,7 +327,8 @@ The `Gallery` scripts put several chart kinds over the same data, with filters t
 | Gallery 5 · survey by age band | bar, line, doughnut | segment (select), minimum age (integer) |
 | Gallery 6 · daily traffic, paged | line, bar | date range, minimum visits, weekdays only (boolean) |
 
-The data and the scripts are in `config/migrations/sqlite/` and `config/config.demo.conf`. The tests in
+The data and the scripts are in `config/migrations/sqlite/` and `config/scripts.conf` under
+`sql-portal/deployment/src/main/resources/`. The tests in
 `sql-portal/integration-tests/src/test/kotlin/.../PresentationTest.kt` check each mode.
 
 ### Sharing a view
@@ -356,10 +398,19 @@ returns up to `max_rows` rows.
 page, chart). Plot a latency percentile with
 `histogram_quantile(0.95, sum by (le, script) (rate(sql_execution_duration_seconds_bucket[5m])))`.
 
-Logs go to stderr through Logback, as text or one JSON object per line (`observability.log_format = json`). Every request
-gets an `X-Request-Id` (taken from the request or generated) that appears in its log lines as `request_id`.
-`observability.log_level` sets the root level and optional per-logger levels (`info,io.merkio.sqlportal=debug`);
-the `SCRIPT_PORTAL_LOG` environment variable overrides it.
+Metrics are scraped from `/metrics` by the cluster's Prometheus; the repository ships no Prometheus setup.
+
+**Logs** go to the console through Logback (`sql-portal/deployment/src/main/resources/logback.xml`). The format follows
+the environment:
+
+- `local`: one plain line per event, with the request id: `12:00:01.234 INFO  [3f2a…] i.m.s.a.ScriptService - …`
+- `k8s`, `uat`, `prod`: one JSON object per line (Logstash encoder) with every MDC field and the fields `app`
+  (`APP_NAME`, default `script-portal`), `env` and `version`.
+
+`LOG_FORMAT=text|json` overrides the choice. Every request gets an `X-Request-Id` (taken from the request or generated);
+the log lines written while serving it carry `request_id`, `http_method` and `http_path` in the MDC.
+`observability.log_level` (`LOG_LEVEL`) sets the root level and optional per-logger levels
+(`info,io.merkio.sqlportal=debug`); the `SCRIPT_PORTAL_LOG` environment variable overrides it.
 
 ## Security notes
 
@@ -390,7 +441,7 @@ make audit        # OWASP dependency check (set NVD_API_KEY)
 ```
 
 Versions of every library and plugin are in `gradle/libs.versions.toml`; the build conventions (JVM 21 toolchain, Kotest
-on JUnit 5, ktlint, detekt, JaCoCo) are plugins in the included build `build-logic/`. `./gradlew build` runs compilation,
+on JUnit 5, ktlint, detekt, JaCoCo) are plugins in the included build `build-plugins/`. `./gradlew build` runs compilation,
 lint, detekt, every test without containers, and `checkArchitecture`.
 
 **Tests.** Unit tests sit next to the code in each module (Kotest). Integration tests live in
@@ -404,8 +455,8 @@ lint, detekt, every test without containers, and `checkArchitecture`.
 
 The LDAP and OIDC adapters are tested against an in-memory LDAP directory (UnboundID) and a local OpenID provider with
 real signed ID tokens; the grants client against a local HTTP service. The TLS options (private CA with host name
-verification, `insecure`, mutual TLS) are tested on a real HTTPS connection (`TlsConnectionTest`); PostgreSQL over TLS
-uses the same `SSLContext` through `PortalSslFactory`. The layer rules are checked by the
+verification, `insecure`, mutual TLS) are tested on a real HTTPS connection (`TlsConnectionTest`); for PostgreSQL the
+mapping to the driver's SSL settings is tested (`PostgresUrlTest`). The layer rules are checked by the
 `checkArchitecture` Gradle task on the declared dependencies of each module.
 
 Container tests use [Testcontainers](https://java.testcontainers.org) and work with Docker or Podman
@@ -417,8 +468,8 @@ killed before cleanup, `make test-docker-clean` removes leftovers.
 ### CI and releases
 
 - `.github/workflows/ci.yml` runs on every pull request: ktlint, detekt and the architecture rules, the tests and the
-  shipped configuration files, coverage (JaCoCo, fails below `COVERAGE_MIN`, default 70 %), the container tests against a
-  freshly built image (plus a check of the image's `HEALTHCHECK` under Docker), and the OWASP dependency check
+  bundled configuration of every environment, coverage (JaCoCo, fails below `COVERAGE_MIN`, default 70 %), the container tests against a
+  freshly built image, and the OWASP dependency check
   (secret `NVD_API_KEY` recommended).
 - `.github/workflows/release.yml` runs on tags like `v1.2.3`: it re-runs the build (the tag must match `version` in
   `gradle.properties`), attaches the JVM distribution (`.tar.gz` and `.zip`, with checksums; runs anywhere with Java 21)

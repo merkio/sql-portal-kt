@@ -1,12 +1,13 @@
 package io.merkio.sqlportal.adapters.sql
 
-import io.merkio.sqlportal.adapters.sql.clickhouse.ClickHouseExecutor
-import io.merkio.sqlportal.adapters.sql.postgres.PostgresExecutor
-import io.merkio.sqlportal.adapters.sql.sqlite.SqliteExecutor
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.domain.query.QueryException
 import io.merkio.sqlportal.domain.query.QueryExecutor
-import org.slf4j.LoggerFactory
+import io.merkio.sqlportal.sqlexecutor.SqlExecutor
+import io.merkio.sqlportal.sqlexecutor.clickhouse.ClickHouseExecutor
+import io.merkio.sqlportal.sqlexecutor.postgres.PostgresExecutor
+import io.merkio.sqlportal.sqlexecutor.sqlite.SqliteExecutor
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -16,7 +17,7 @@ import kotlin.io.path.name
 import kotlin.io.path.readText
 import kotlin.time.Duration
 
-private val log = LoggerFactory.getLogger("io.merkio.sqlportal.adapters.sql.Database")
+private val log = KotlinLogging.logger {}
 
 /** The database could not be connected or prepared at startup. */
 class DatabaseSetupException(
@@ -25,8 +26,10 @@ class DatabaseSetupException(
 ) : RuntimeException(message, cause)
 
 /**
- * Picks the adapter from the URL scheme: `clickhouse://` and `clickhouses://`
- * use the ClickHouse HTTP interface, `postgres://` and `sqlite:` use JDBC.
+ * Picks the datasource from the URL scheme: `clickhouse://` and
+ * `clickhouses://` use the ClickHouse HTTP interface, `postgres://` and
+ * `sqlite:` plain JDBC connections that are opened once and reused. The
+ * result speaks the domain's [QueryExecutor].
  *
  * @throws DatabaseSetupException when the database cannot be reached or the
  *   driver for it is not part of this build.
@@ -36,7 +39,14 @@ fun connectDatabase(
     maxConnections: Int,
     acquireTimeout: Duration,
     tls: TlsOptions,
-): QueryExecutor =
+): QueryExecutor = DatasourceExecutor(connectDatasource(url, maxConnections, acquireTimeout, tls))
+
+private fun connectDatasource(
+    url: String,
+    maxConnections: Int,
+    acquireTimeout: Duration,
+    tls: TlsOptions,
+): SqlExecutor =
     try {
         when {
             url.startsWith("clickhouse://") || url.startsWith("clickhouses://") ->
@@ -86,7 +96,7 @@ suspend fun runInitFiles(
         } catch (e: QueryException) {
             throw DatabaseSetupException("init file $file failed: ${e.message}", e)
         }
-        log.info("init script executed: {}", file)
+        log.info { "init script executed: $file" }
     }
 }
 
@@ -116,7 +126,7 @@ suspend fun prepareDatabase(
 ) {
     if (migrations != null) {
         val applied = applyMigrations(executor, migrations)
-        log.info("{} migrations applied from {}", applied, migrations)
+        log.info { "$applied migrations applied from $migrations" }
     }
     runInitFiles(executor, initFiles)
 }

@@ -3,9 +3,9 @@ package io.merkio.sqlportal.integration
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
-import io.merkio.sqlportal.deployment.PrometheusMetrics
-import io.merkio.sqlportal.deployment.describeAndInit
-import io.merkio.sqlportal.deployment.portalRegistry
+import io.merkio.sqlportal.deployment.observability.PrometheusMetrics
+import io.merkio.sqlportal.deployment.observability.describeAndInit
+import io.merkio.sqlportal.deployment.observability.portalRegistry
 import kotlin.time.Duration.Companion.milliseconds
 
 /** The Prometheus pipeline end to end: HTTP and business metrics in one registry. */

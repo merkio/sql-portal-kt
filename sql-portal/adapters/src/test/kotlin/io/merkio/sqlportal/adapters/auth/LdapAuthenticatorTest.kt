@@ -11,8 +11,6 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
-import io.merkio.sqlportal.adapters.config.LdapConfig
-import io.merkio.sqlportal.adapters.config.LdapGroupSearch
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.AuthProvider

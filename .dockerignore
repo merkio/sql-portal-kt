@@ -6,6 +6,5 @@
 **/build
 *.md
 docs
-prometheus
 docker-compose.yml
 Dockerfile

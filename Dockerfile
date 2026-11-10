@@ -8,11 +8,10 @@ WORKDIR /src
 # so dependencies are not downloaded again between builds.
 COPY gradlew settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY gradle ./gradle
-COPY build-logic ./build-logic
+COPY build-plugins ./build-plugins
 COPY common ./common
 COPY datasources ./datasources
 COPY sql-portal ./sql-portal
-COPY config ./config
 
 # Which JDBC drivers to package: all, or a subset of sqlite,postgres.
 ARG DATABASES=all
@@ -34,24 +33,22 @@ LABEL org.opencontainers.image.title="script-portal" \
 
 WORKDIR /app
 COPY --from=builder /opt/script-portal/lib /app/lib
-COPY config/ /app/config/
 
-# The bundled demo config DISABLES authentication and uses an in-memory SQLite
-# database. Mount your own configuration and set SCRIPT_PORTAL_CONFIG for real use.
+# The configuration is bundled in the application jar: config/default.conf plus
+# config/env/$APP_ENV.conf. APP_ENV=local (the default here) DISABLES
+# authentication and seeds an in-memory SQLite demo database, with text logs.
+# In the cluster set APP_ENV=k8s, uat or prod (JSON logs), DATABASE_URL and the
+# sign-in variables (see the README); an extra HOCON file can be mounted and
+# named by SCRIPT_PORTAL_CONFIG. The application has no command line arguments.
 # Timestamps with time zone are rendered in the JVM time zone (UTC here; set TZ to change).
-ENV SCRIPT_PORTAL_CONFIG=/app/config/config.demo.conf \
+ENV APP_ENV=local \
     SCRIPT_PORTAL_BIND=0.0.0.0:8080 \
     TZ=UTC
 
 EXPOSE 8080
 USER nonroot:nonroot
 
-# Distroless has no curl: the application ships its own probe (GET /readyz),
-# started as a small, short-lived JVM.
-HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=3 \
-    CMD ["/usr/bin/java", "-Xmx32m", "-XX:TieredStopAtLevel=1", "-XX:+UseSerialGC", "-cp", "/app/lib/*", \
-         "io.merkio.sqlportal.deployment.MainKt", "healthcheck", "--addr", "127.0.0.1:8080", "--path", "/readyz"]
-
-ENTRYPOINT ["/usr/bin/java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", "-cp", "/app/lib/*", \
+# Kubernetes probes: liveness GET /healthz, readiness GET /readyz.
+ENTRYPOINT ["/usr/bin/java", "-XX:MaxRAMPercentage=75", "-XX:+ExitOnOutOfMemoryError", \
+            "-Dkotlin-logging.logStartupMessage=false", "-cp", "/app/lib/*", \
             "io.merkio.sqlportal.deployment.MainKt"]
-CMD ["serve"]

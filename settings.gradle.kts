@@ -1,7 +1,7 @@
 // Composite build: the convention plugins come from the included build
-// `build-logic`; library versions from gradle/libs.versions.toml.
+// `build-plugins`; library versions from gradle/libs.versions.toml.
 pluginManagement {
-    includeBuild("build-logic")
+    includeBuild("build-plugins")
     repositories {
         gradlePluginPortal()
         mavenCentral()
@@ -24,8 +24,12 @@ include(":common:tls-config")
 include(":common:prometheus-metrics")
 include(":common:template-render")
 
-// The dialect contract (no I/O).
+// Datasources: the executor contract, and one module per database (dialect + executor).
 include(":datasources:sql-executor")
+include(":datasources:jdbc-executor")
+include(":datasources:sqlite-executor")
+include(":datasources:postgres-executor")
+include(":datasources:clickhouse-executor")
 
 // The application.
 include(":sql-portal:domain")

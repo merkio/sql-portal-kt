@@ -1,12 +1,35 @@
-<!-- Used until the configuration is loaded; `observability` then reconfigures logging. -->
+<!--
+  Logging follows the environment (APP_ENV):
+    local            plain text lines on the console
+    k8s, uat, prod   one JSON object per line, with every MDC field (request_id,
+                     http_method, http_path, ...) plus app, env and version
+  LOG_FORMAT=text|json overrides the choice; APP_NAME renames the app field.
+  Levels come from observability.log_level (or SCRIPT_PORTAL_LOG) once the
+  configuration is loaded.
+-->
 <configuration>
-  <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
-    <target>System.err</target>
+  <!-- Logback's own status messages stay out of the application log. -->
+  <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
+
+  <define name="LOG_FORMAT" class="io.merkio.sqlportal.deployment.observability.LogFormatDefiner"/>
+  <define name="APP_ENV" class="io.merkio.sqlportal.deployment.observability.EnvironmentDefiner"/>
+  <define name="APP_VERSION" class="io.merkio.sqlportal.deployment.observability.VersionDefiner"/>
+  <property name="APP_NAME" value="${APP_NAME:-script-portal}"/>
+
+  <appender name="TEXT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
-      <pattern>%d{ISO8601} %-5level %logger{36} - %msg%n</pattern>
+      <pattern>%d{HH:mm:ss.SSS} %-5level [%X{request_id:--}] %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
+
+  <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <customFields>{"app":"${APP_NAME}","env":"${APP_ENV}","version":"${APP_VERSION}"}</customFields>
+      <includeMdc>true</includeMdc>
+    </encoder>
+  </appender>
+
   <root level="INFO">
-    <appender-ref ref="console"/>
+    <appender-ref ref="${LOG_FORMAT}"/>
   </root>
 </configuration>

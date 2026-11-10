@@ -25,7 +25,6 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.merkio.sqlportal.adapters.TestServer
-import io.merkio.sqlportal.adapters.config.OidcConfig
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.AuthProvider

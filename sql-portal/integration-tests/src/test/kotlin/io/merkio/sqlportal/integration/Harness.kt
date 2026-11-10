@@ -16,17 +16,17 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.parseQueryString
 import io.ktor.server.testing.TestApplication
-import io.merkio.sqlportal.adapters.config.ConfigLoader
-import io.merkio.sqlportal.adapters.config.RuntimeConfig
 import io.merkio.sqlportal.adapters.sql.connectDatabase
 import io.merkio.sqlportal.application.AuthMode
 import io.merkio.sqlportal.application.NoopMetrics
 import io.merkio.sqlportal.application.Providers
 import io.merkio.sqlportal.common.tls.TlsOptions
-import io.merkio.sqlportal.deployment.HealthProbe
-import io.merkio.sqlportal.deployment.Overrides
-import io.merkio.sqlportal.deployment.portalModule
-import io.merkio.sqlportal.deployment.wire
+import io.merkio.sqlportal.deployment.config.ConfigLoader
+import io.merkio.sqlportal.deployment.config.RuntimeConfig
+import io.merkio.sqlportal.deployment.health.HealthProbe
+import io.merkio.sqlportal.deployment.wiring.Overrides
+import io.merkio.sqlportal.deployment.wiring.portalModule
+import io.merkio.sqlportal.deployment.wiring.wire
 import io.merkio.sqlportal.domain.access.LocalGrants
 import io.merkio.sqlportal.testing.FakeLdap
 import io.merkio.sqlportal.testing.FakeOidc
@@ -35,16 +35,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import java.nio.file.Path
-import kotlin.io.path.readText
 import kotlin.time.Duration.Companion.seconds
 
 val repoRoot: Path = Path.of(System.getProperty("sqlportal.repoRoot", "../.."))
 
-/** The configuration file `config/<name>`, as text and with its directory. */
-fun configText(name: String = "config.demo.conf") = repoRoot.resolve("config").resolve(name).readText()
-
-fun runtime(text: String = configText()): RuntimeConfig =
-    ConfigLoader.load(text, repoRoot.resolve("config"), emptyMap())
+/** The bundled `local` environment (the demo), with HOCON [overrides] on top. */
+fun runtime(overrides: String = ""): RuntimeConfig = ConfigLoader.load("local", overrides)
 
 class Options(
     val authEnabled: Boolean = true,

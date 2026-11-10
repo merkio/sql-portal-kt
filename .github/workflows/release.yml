@@ -54,15 +54,14 @@ jobs:
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
       # One archive runs on every OS with Java 21: bin/script-portal (Unix) and
-      # bin/script-portal.bat (Windows), plus the configuration files.
+      # bin/script-portal.bat (Windows); the configuration is bundled in the jar.
       - name: Build archives
         run: |
           ./gradlew :sql-portal:deployment:installDist
           name="script-portal-${{ needs.verify.outputs.version }}"
           mkdir -p dist "$name"
           cp -r sql-portal/deployment/build/install/script-portal/. "$name/"
-          cp -r config README.md LICENSE "$name/"
-          rm -rf "$name/config/detekt" "$name/config/dependency-check-suppressions.xml"
+          cp README.md LICENSE "$name/"
           tar czf "dist/$name.tar.gz" "$name"
           zip -qr "dist/$name.zip" "$name"
           (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" && sha256sum "$name.zip" > "$name.zip.sha256")

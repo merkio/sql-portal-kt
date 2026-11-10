@@ -10,7 +10,7 @@ import com.unboundid.ldap.sdk.SearchRequest
 import com.unboundid.ldap.sdk.SearchResultEntry
 import com.unboundid.ldap.sdk.SearchScope
 import com.unboundid.ldap.sdk.extensions.StartTLSExtendedRequest
-import io.merkio.sqlportal.adapters.config.LdapConfig
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.AuthProvider
@@ -18,7 +18,6 @@ import io.merkio.sqlportal.domain.access.CredentialAuthenticator
 import io.merkio.sqlportal.domain.access.User
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
 import javax.net.ssl.SSLContext
 
 /** LDAP authentication: search the user with a service account, then bind as the user. */
@@ -125,14 +124,14 @@ class LdapAuthenticator(
                 ldap.search(request).searchEntries
             } catch (e: LDAPException) {
                 if (e.resultCode != ResultCode.SIZE_LIMIT_EXCEEDED) throw e
-                log.warn("ambiguous LDAP user filter matched several entries")
+                log.warn { "ambiguous LDAP user filter matched several entries" }
                 throw AuthException.InvalidCredentials(e)
             }
         return when (entries.size) {
             1 -> entries.single()
             0 -> throw AuthException.InvalidCredentials()
             else -> {
-                log.warn("ambiguous LDAP user filter matched several entries")
+                log.warn { "ambiguous LDAP user filter matched several entries" }
                 throw AuthException.InvalidCredentials()
             }
         }
@@ -153,7 +152,7 @@ class LdapAuthenticator(
     }
 
     private companion object {
-        val log = LoggerFactory.getLogger(LdapAuthenticator::class.java)
+        private val log = KotlinLogging.logger {}
         const val MILLIS = 1000L
 
         fun attributes(entry: SearchResultEntry): Map<String, List<String>> =

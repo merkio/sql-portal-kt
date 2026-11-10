@@ -1,5 +1,6 @@
 package io.merkio.sqlportal.application
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.domain.access.Principal
 import io.merkio.sqlportal.domain.access.ScriptAccessRule
 import io.merkio.sqlportal.domain.common.Value
@@ -16,7 +17,6 @@ import io.merkio.sqlportal.domain.scripts.ParamKind
 import io.merkio.sqlportal.domain.scripts.ScriptCatalog
 import io.merkio.sqlportal.domain.scripts.ScriptDefinition
 import io.merkio.sqlportal.domain.scripts.ScriptException
-import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -122,7 +122,7 @@ class ScriptService(
     private val metrics: Metrics,
     private val access: ScriptAccessRule = RequiredPermissions,
 ) {
-    private val log = LoggerFactory.getLogger(ScriptService::class.java)
+    private val log = KotlinLogging.logger {}
 
     /** Every script, sorted by title, each marked as accessible or locked. */
     fun listAll(principal: Principal): List<ScriptSummary> =
@@ -230,11 +230,11 @@ class ScriptService(
         try {
             val run = runInner(script, rawParams, page, started)
             metrics.scriptRun(script.name.value, "success", run.duration, run.result.rows.size)
-            log.info("script {} returned {} rows", script.name, run.result.rows.size)
+            log.info { "script ${script.name} returned ${run.result.rows.size} rows" }
             return run
         } catch (e: ScriptException) {
             metrics.scriptRun(script.name.value, e.outcome, started.elapsedNow(), 0)
-            log.warn("script {} failed: {}", script.name, e.message)
+            log.warn { "script ${script.name} failed: ${e.message}" }
             throw e
         }
     }

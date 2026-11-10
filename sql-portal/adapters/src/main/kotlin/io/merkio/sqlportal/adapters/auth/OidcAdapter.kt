@@ -19,7 +19,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.URLBuilder
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
-import io.merkio.sqlportal.adapters.config.OidcConfig
 import io.merkio.sqlportal.adapters.http.httpClient
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.domain.access.AuthException

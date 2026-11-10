@@ -1,4 +1,4 @@
-// Port implementations: SQL executors, LDAP, OIDC, grants service, configuration.
+// Port implementations: the domain QueryExecutor over the datasources, LDAP, OIDC, grants service.
 plugins {
     id("sqlportal.kotlin-serialization")
 }
@@ -7,11 +7,12 @@ dependencies {
     api(projects.sqlPortal.domain)
     api(projects.common.tlsConfig)
     implementation(projects.datasources.sqlExecutor)
+    implementation(projects.datasources.sqliteExecutor)
+    implementation(projects.datasources.postgresExecutor)
+    implementation(projects.datasources.clickhouseExecutor)
 
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.slf4j.api)
-    api(libs.typesafe.config)
-    implementation(libs.hikari)
+    implementation(libs.kotlin.logging)
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.java)
     implementation(libs.unboundid.ldapsdk)

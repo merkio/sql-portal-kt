@@ -13,7 +13,7 @@ dependencies {
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.forwarded.header)
     implementation(libs.ktor.server.auto.head.response)
-    implementation(libs.slf4j.api)
+    implementation(libs.kotlin.logging)
     api(libs.micrometer.core)
 
     testImplementation(projects.sqlPortal.testing)

@@ -6,7 +6,7 @@ plugins {
 dependencies {
     api(projects.sqlPortal.domain)
     api(libs.kotlinx.coroutines.core)
-    implementation(libs.slf4j.api)
+    implementation(libs.kotlin.logging)
 
     testImplementation(projects.sqlPortal.testing)
 }

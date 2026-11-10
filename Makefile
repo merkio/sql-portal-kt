@@ -1,4 +1,4 @@
-.PHONY: fmt lint test test-docker test-e2e test-docker-clean image-test coverage audit run check-config dist docker
+.PHONY: fmt lint test test-docker test-e2e test-docker-clean image-test coverage audit run dist docker
 
 # Image used by the end-to-end tests (PortalImageTest).
 SCRIPT_PORTAL_IMAGE ?= script-portal:test
@@ -42,11 +42,12 @@ coverage:
 audit:
 	$(GRADLE) dependencyCheckAnalyze
 
-run:
-	$(GRADLE) :sql-portal:deployment:run --args="--config $(CURDIR)/config/config.demo.conf"
+# APP_ENV selects the bundled environment (local, k8s, uat, prod); local by default.
+APP_ENV ?= local
+export APP_ENV
 
-check-config:
-	$(GRADLE) :sql-portal:deployment:run --args="--config $(CURDIR)/config/config.demo.conf check-config"
+run:
+	$(GRADLE) :sql-portal:deployment:run
 
 # The distribution (bin/ and lib/) under sql-portal/deployment/build/install/script-portal.
 dist:

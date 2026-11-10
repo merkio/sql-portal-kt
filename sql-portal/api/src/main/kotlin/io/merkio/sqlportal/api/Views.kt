@@ -6,6 +6,7 @@
  */
 package io.merkio.sqlportal.api
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.application.ScriptRun
 import io.merkio.sqlportal.application.ScriptSummary
 import io.merkio.sqlportal.common.template.Templates
@@ -30,7 +31,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import org.slf4j.LoggerFactory
 import java.net.URLEncoder
 import java.util.SortedMap
 
@@ -45,7 +45,7 @@ internal object Assets {
     val version = contentVersion(css, js)
 }
 
-private val log = LoggerFactory.getLogger("io.merkio.sqlportal.api.Views")
+private val log = KotlinLogging.logger {}
 
 private val templates = Templates(Assets::class.java, "/sqlportal/templates")
 
@@ -63,7 +63,7 @@ private fun render(
     try {
         templates.render(name, model)
     } catch (e: io.merkio.sqlportal.common.template.TemplateException) {
-        log.error("template render failed: {}", name, e)
+        log.error(e) { "template render failed: $name" }
         """<p class="alert" role="alert">The page could not be shown.</p>"""
     }
 

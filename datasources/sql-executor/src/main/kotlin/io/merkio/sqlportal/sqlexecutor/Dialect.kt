@@ -2,12 +2,12 @@
  * Database-independent contract for SQL dialects.
  *
  * A dialect turns a script written with `:name` placeholders into the syntax
- * of one database and decides how values are bound. Implementations live in
- * the `*-dialect` modules and do no I/O, so they can be tested without a server
- * and reused by any application that talks to that database.
+ * of one database and decides how values are bound. Each implementation lives
+ * in the `*-executor` module of its database, next to the executor, and does
+ * no I/O, so it can be tested without a server.
  *
- * To support another database: implement [Dialect] in a new module and
- * execute the [Statement] it produces with the driver you use.
+ * To support another database: add a `*-executor` module with a [Dialect] and
+ * a [SqlExecutor] that runs the [Statement]s it produces.
  */
 package io.merkio.sqlportal.sqlexecutor
 

@@ -1,5 +1,6 @@
 package io.merkio.sqlportal.application
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.merkio.sqlportal.domain.access.AuthException
 import io.merkio.sqlportal.domain.access.CredentialAuthenticator
 import io.merkio.sqlportal.domain.access.GrantSource
@@ -9,7 +10,6 @@ import io.merkio.sqlportal.domain.access.OidcPending
 import io.merkio.sqlportal.domain.access.OidcProvider
 import io.merkio.sqlportal.domain.access.Principal
 import io.merkio.sqlportal.domain.access.User
-import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 
 /** Query parameters returned by the identity provider. */
@@ -42,7 +42,7 @@ class AuthService(
     private val grants: GrantSource,
     private val metrics: Metrics,
 ) {
-    private val log = LoggerFactory.getLogger(AuthService::class.java)
+    private val log = KotlinLogging.logger {}
 
     /** The single place that turns the master switch into an error. */
     private fun providers(): Providers =
@@ -71,7 +71,7 @@ class AuthService(
             try {
                 grants.grantsFor(user)
             } catch (e: AuthException) {
-                log.warn("grants unavailable for {}; denying access: {}", user.subject, e.message)
+                log.warn { "grants unavailable for ${user.subject}; denying access: ${e.message}" }
                 Grants()
             }
         return Principal(user, granted.roles, granted.permissions)
@@ -116,11 +116,11 @@ class AuthService(
         try {
             attempt().also {
                 metrics.authAttempt(provider, "success")
-                log.info("{} login succeeded for {}", provider, it.subject)
+                log.info { "$provider login succeeded for ${it.subject}" }
             }
         } catch (e: AuthException) {
             metrics.authAttempt(provider, e.outcome)
-            log.warn("{} login failed: {}", provider, e.message)
+            log.warn { "$provider login failed: ${e.message}" }
             throw e
         }
 }

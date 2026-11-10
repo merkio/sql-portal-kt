@@ -26,14 +26,12 @@ import java.time.Duration
 
 /**
  * The shipped image (SCRIPT_PORTAL_IMAGE, default script-portal:test): HTTP
- * endpoints, metrics, security headers, the built-in commands, a startup
- * failure, and the image talking to PostgreSQL over a container network.
+ * endpoints, metrics, security headers, startup failures, and the image talking to PostgreSQL over a container network.
  * The image is never pulled; build it first (`make image-test`).
  */
 class PortalImageTest :
     FunSpec({
         tags(Docker)
-        val java = listOf("/usr/bin/java", "-cp", "/app/lib/*", "io.merkio.sqlportal.deployment.MainKt")
 
         fun portal(
             config: String? = null,
@@ -45,8 +43,8 @@ class PortalImageTest :
                 .waitingFor(Wait.forHttp("/readyz").forStatusCode(200).withStartupTimeout(Duration.ofSeconds(90)))
                 .apply {
                     if (config != null) {
-                        withCopyToContainer(Transferable.of(config), "/app/config/test.conf")
-                        withEnv("SCRIPT_PORTAL_CONFIG", "/app/config/test.conf")
+                        withCopyToContainer(Transferable.of(config), "/tmp/test.conf")
+                        withEnv("SCRIPT_PORTAL_CONFIG", "/tmp/test.conf")
                     }
                     if (network != null) withNetwork(network)
                 }
@@ -120,23 +118,15 @@ class PortalImageTest :
             text shouldContain "auth_enabled 0"
         }
 
-        test("the built-in healthcheck command reports health") {
-            // Podman ignores HEALTHCHECK in OCI images, so the command is run directly.
-            demo.execInContainer(*(java + listOf("healthcheck", "--path", "/readyz")).toTypedArray()).exitCode shouldBe
-                0
-            demo
-                .execInContainer(
-                    *(java + listOf("healthcheck", "--path", "/no-such-path")).toTypedArray(),
-                ).exitCode shouldNotBe
-                0
-        }
-
-        test("check-config validates the bundled configuration") {
+        test("a cluster environment without its variables fails at startup") {
             GenericContainer(portalImage)
                 .labelled()
-                .withCommand("check-config")
-                .waitingFor(Wait.forLogMessage(".*configuration OK.*", 1).withStartupTimeout(Duration.ofSeconds(60)))
-                .use { it.start() }
+                .withEnv("APP_ENV", "prod")
+                .waitingFor(
+                    Wait
+                        .forLogMessage(".*environment variable 'DATABASE_URL' is not set.*", 1)
+                        .withStartupTimeout(Duration.ofSeconds(60)),
+                ).use { it.start() }
         }
 
         test("an invalid configuration fails at startup") {
@@ -145,8 +135,8 @@ class PortalImageTest :
                 .labelled()
                 .withCopyToContainer(
                     Transferable.of("database.url = \"sqlite::memory:\"\nauth.enabled = true\n"),
-                    "/app/config/test.conf",
-                ).withEnv("SCRIPT_PORTAL_CONFIG", "/app/config/test.conf")
+                    "/tmp/test.conf",
+                ).withEnv("SCRIPT_PORTAL_CONFIG", "/tmp/test.conf")
                 .waitingFor(
                     Wait
                         .forLogMessage(
@@ -167,6 +157,7 @@ class PortalImageTest :
                     val config =
                         """
                         database.url = "postgres://${pg.username}:${pg.password}@pg:5432/${pg.databaseName}"
+                        database.migrations.enabled = false
                         auth.enabled = false
                         scripts = [
                           { name = server_version, title = "Server version", sql = "SELECT version() AS version" }

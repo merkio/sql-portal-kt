@@ -10,17 +10,15 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.testing.testApplication
-import io.merkio.sqlportal.adapters.config.ConfigError
 import io.merkio.sqlportal.adapters.sql.DatabaseSetupException
-import io.merkio.sqlportal.deployment.buildApp
-import io.merkio.sqlportal.deployment.portalRegistry
+import io.merkio.sqlportal.deployment.config.ConfigError
+import io.merkio.sqlportal.deployment.observability.portalRegistry
+import io.merkio.sqlportal.deployment.wiring.buildApp
 
-/** The real composition root (`buildApp`) with the shipped configuration files. */
+/** The real composition root (`buildApp`) with the bundled configuration of the local environment. */
 class BootstrapTest :
     FunSpec({
-        suspend fun app(text: String = configText()): Application.() -> Unit = buildApp(runtime(text), portalRegistry())
-
-        fun withDemo(replace: Pair<String, String>) = configText().replace(replace.first, replace.second)
+        suspend fun app(overrides: String = ""): Application.() -> Unit = buildApp(runtime(overrides), portalRegistry())
 
         test("the demo configuration builds a working application") {
             val module = app()
@@ -34,12 +32,12 @@ class BootstrapTest :
         }
 
         test("metrics can be switched off and moved") {
-            val off = app(withDemo("auth {" to "observability.metrics_enabled = false\nauth {"))
+            val off = app("observability.metrics_enabled = false")
             testApplication {
                 application(off)
                 client.get("/metrics").status shouldBe HttpStatusCode.NotFound
             }
-            val moved = app(withDemo("auth {" to "observability.metrics_path = /prom\nauth {"))
+            val moved = app("observability.metrics_path = /prom")
             testApplication {
                 application(moved)
                 client.get("/prom").status shouldBe HttpStatusCode.OK
@@ -48,17 +46,13 @@ class BootstrapTest :
         }
 
         test("enabling auth without providers fails before any adapter starts") {
-            shouldThrow<ConfigError> { runtime(withDemo("enabled = false" to "enabled = true")) }.message shouldContain
+            shouldThrow<ConfigError> { runtime("auth.enabled = true") }.message shouldContain
                 "neither auth.ldap nor auth.oidc"
         }
 
         test("an unreachable database fails startup") {
             shouldThrow<DatabaseSetupException> {
-                app(
-                    withDemo(
-                        "\"sqlite::memory:\"" to "\"sqlite:///nonexistent-dir/x.db?mode=ro\"",
-                    ),
-                )
+                app("database.url = \"sqlite:///nonexistent-dir/x.db?mode=ro\"\ndatabase.migrations.enabled = false")
             }
         }
 
@@ -66,18 +60,14 @@ class BootstrapTest :
             // LDAP, OIDC and the grants service point at a closed port: wiring must
             // succeed, and only the optional OIDC probe reports down.
             val text =
-                withDemo(
-                    "auth {\n  enabled = false" to
-                        """
-                        auth {
-                          enabled = true
-                          ldap { url = "ldap://127.0.0.1:1", bind_dn = "cn=svc", bind_password = p, base_dn = "dc=example,dc=org" }
-                          oidc { issuer_url = "https://127.0.0.1:1", client_id = portal }
-                        """.trimIndent(),
-                ).replace(
-                    "access {\n",
-                    "access {\n  external { url = \"https://127.0.0.1:1/grants\", cache_ttl_secs = 60 }\n",
-                )
+                """
+                auth {
+                  enabled = true
+                  ldap { enabled = true, url = "ldap://127.0.0.1:1", bind_dn = "cn=svc", bind_password = p, base_dn = "dc=example,dc=org" }
+                  oidc { enabled = true, issuer_url = "https://127.0.0.1:1", client_id = portal }
+                }
+                access.external { url = "https://127.0.0.1:1/grants", cache_ttl_secs = 60 }
+                """.trimIndent()
             val module = app(text)
             testApplication {
                 application(module)
@@ -90,8 +80,8 @@ class BootstrapTest :
         }
 
         test("migrations run only when enabled explicitly") {
-            configText() shouldContain "migrations {\n    enabled = true"
-            val disabled = app(withDemo("migrations {\n    enabled = true" to "migrations {\n    enabled = false"))
+            runtime().database.migrations shouldNotBe null
+            val disabled = app("database.migrations.enabled = false")
             testApplication {
                 application(disabled)
                 client.get("/scripts/monthly_trend").status shouldNotBe HttpStatusCode.OK
@@ -100,7 +90,7 @@ class BootstrapTest :
 
         test("enabled migrations need an existing directory") {
             shouldThrow<ConfigError> {
-                runtime(withDemo("dir = migrations/sqlite" to "dir = migrations/does-not-exist"))
+                runtime("database.migrations.dir = migrations/does-not-exist")
             }.message shouldContain
                 "not a directory"
         }

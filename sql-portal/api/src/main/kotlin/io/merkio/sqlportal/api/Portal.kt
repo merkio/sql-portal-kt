@@ -46,7 +46,6 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import org.slf4j.event.Level
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 
@@ -71,8 +70,10 @@ fun Application.portal(
         replyToHeader("X-Request-Id")
     }
     install(CallLogging) {
-        level = Level.INFO
         callIdMdc("request_id")
+        // Every log line written while serving a request carries these MDC fields.
+        mdc("http_method") { it.request.httpMethod.value }
+        mdc("http_path") { it.request.path() }
         // Only the path is logged: query strings may carry parameters.
         format { call -> "${call.response.status()?.value} ${call.request.httpMethod.value} ${call.request.path()}" }
     }

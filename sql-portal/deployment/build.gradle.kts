@@ -1,7 +1,8 @@
-// Composition root and the `script-portal` command: wires every part from the
-// configuration with Koin, and owns the runtime classpath (JDBC drivers).
+// Composition root and the entry point: loads the configuration
+// (bundled default + environment + optional file), wires every part with Koin,
+// and owns the runtime classpath (JDBC drivers).
 plugins {
-    id("sqlportal.kotlin-library")
+    id("sqlportal.kotlin-serialization")
     application
 }
 
@@ -13,10 +14,11 @@ dependencies {
     implementation(projects.common.prometheusMetrics)
 
     implementation(libs.koin.core)
-    implementation(libs.clikt.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.slf4j.api)
+    implementation(libs.kotlinx.serialization.hocon)
+    implementation(libs.typesafe.config)
+    implementation(libs.kotlin.logging)
     implementation(libs.logback.classic)
     implementation(libs.logstash.logback.encoder)
 
@@ -39,11 +41,9 @@ tasks.jar {
     manifest { attributes("Implementation-Version" to project.version) }
 }
 
-tasks.test {
-    systemProperty("sqlportal.repoRoot", rootDir.absolutePath)
-}
-
 application {
     applicationName = "script-portal"
     mainClass.set("io.merkio.sqlportal.deployment.MainKt")
+    // KotlinLogging would print its own banner to stdout before the first log line.
+    applicationDefaultJvmArgs = listOf("-Dkotlin-logging.logStartupMessage=false")
 }
