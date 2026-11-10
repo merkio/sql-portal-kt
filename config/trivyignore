@@ -1,0 +1,4 @@
+# Reviewed findings of the dependency audit (Trivy) that do not apply.
+# One vulnerability id per line, each with a comment saying why, e.g.
+#   # jackson-databind polymorphic typing is never enabled here
+#   CVE-2026-00000
