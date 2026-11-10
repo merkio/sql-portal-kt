@@ -10,10 +10,10 @@ import io.merkio.sqlportal.sqlexecutor.Cell
 
 class PostgresDialectTest :
     FunSpec({
-        test("untyped parameters are positional and bound as text") {
+        test("untyped parameters are positional, one per occurrence, and bound as text") {
             val st = PostgresDialect.prepare("SELECT :a, :b, :a", listOf("a" to Cell.Bool(true), "b" to Cell.Int(7)))
-            st.sql shouldBe "SELECT $1, $2, $1"
-            st.bind shouldBe listOf(Cell.Text("true"), Cell.Text("7"))
+            st.sql shouldBe "SELECT ?, ?, ?"
+            st.bind shouldBe listOf(Cell.Text("true"), Cell.Text("7"), Cell.Text("true"))
         }
 
         test("typed parameters are cast and keep native values") {
@@ -23,7 +23,7 @@ class PostgresDialectTest :
                     listOf("d" to Cell.Text("2024-01-02"), "t" to Cell.Text("x")),
                     listOf("date", "TEXT"),
                 )
-            st.sql shouldBe "SELECT CAST($1 AS date), $2"
+            st.sql shouldBe "SELECT CAST(? AS date), ?"
             st.bind shouldBe listOf(Cell.Text("2024-01-02"), Cell.Text("x"))
         }
 
@@ -54,9 +54,9 @@ class PostgresDialectTest :
             numericCell("NaN").shouldBeInstanceOf<Cell.Float>().value.isNaN() shouldBe true
         }
 
-        test("the JDBC style binds every occurrence, typed per occurrence") {
+        test("every occurrence is typed on its own") {
             val st =
-                PostgresJdbcDialect.prepare(
+                PostgresDialect.prepare(
                     "SELECT :a, :d, :a;",
                     listOf("a" to Cell.Int(7), "d" to Cell.Text("2024-01-02")),
                     listOf("int8", "date", "text"),
@@ -65,9 +65,9 @@ class PostgresDialectTest :
             st.bind shouldBe listOf(Cell.Int(7), Cell.Text("2024-01-02"), Cell.Text("7"))
         }
 
-        test("the JDBC style escapes literal question marks in code only") {
+        test("literal question marks are escaped in code only") {
             val st =
-                PostgresJdbcDialect.prepare(
+                PostgresDialect.prepare(
                     "SELECT doc ? 'k', '?' -- ?\nFROM t WHERE x = :x",
                     listOf(
                         "x" to Cell.Int(1),

@@ -399,7 +399,9 @@ lint, detekt, every test without containers, and `checkArchitecture`.
 | `PortalImageTest` | the portal Docker image (`SCRIPT_PORTAL_IMAGE`, default `script-portal:test`), alone and with PostgreSQL on a shared network | `-Pdocker` + the image |
 
 The LDAP and OIDC adapters are tested against an in-memory LDAP directory (UnboundID) and a local OpenID provider with
-real signed ID tokens; the grants client against a local HTTP service. The layer rules are checked by the
+real signed ID tokens; the grants client against a local HTTP service. The TLS options (private CA with host name
+verification, `insecure`, mutual TLS) are tested on a real HTTPS connection (`TlsConnectionTest`); PostgreSQL over TLS
+uses the same `SSLContext` through `PortalSslFactory`. The layer rules are checked by the
 `checkArchitecture` Gradle task on the declared dependencies of each module.
 
 Container tests use [Testcontainers](https://java.testcontainers.org) and work with Docker or Podman

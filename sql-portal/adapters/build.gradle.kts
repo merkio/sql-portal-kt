@@ -22,7 +22,7 @@ dependencies {
 
     // JDBC drivers are runtime choices of the deployment; the tests need them.
     testRuntimeOnly(libs.sqlite.jdbc)
-    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.bouncycastle.pkix)
     testImplementation(libs.ktor.server.core)
     testImplementation(libs.ktor.server.cio)
 }

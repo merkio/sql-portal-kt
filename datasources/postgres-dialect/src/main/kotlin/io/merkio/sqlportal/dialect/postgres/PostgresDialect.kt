@@ -4,7 +4,7 @@
  * Three rules make typed values work over the wire:
  *
  * - Parameters. When the server declared a parameter's type and the type has
- *   a cast here, the placeholder becomes `CAST($n AS type)` and the value is
+ *   a cast here, the placeholder becomes `CAST(? AS type)` and the value is
  *   bound natively. Otherwise the server types the parameter as text and the
  *   value is bound in its text form.
  * - Results. [wrapResult] puts the statement in a subquery and converts each
@@ -30,51 +30,15 @@ import io.merkio.sqlportal.sqlexecutor.skipBlockComment
 import io.merkio.sqlportal.sqlexecutor.skipLineComment
 import io.merkio.sqlportal.sqlexecutor.skipQuoted
 
+/**
+ * The PostgreSQL dialect for JDBC, which only knows `?` placeholders. Every
+ * occurrence of a `:name` placeholder becomes its own `?` (repeated names bind
+ * their value again), and [paramTypes] are the server-declared types per
+ * occurrence. A literal `?` outside quotes and comments (jsonb operators) is
+ * written `??`, the JDBC escape for a question mark.
+ */
 object PostgresDialect : Dialect {
     override val name = "postgres"
-
-    override fun prepare(
-        sql: String,
-        params: List<Pair<String, Cell>>,
-        paramTypes: List<String>?,
-    ): Statement {
-        val body = trimStatement(sql)
-        val out = StringBuilder(body.length)
-        val names = mutableListOf<String>()
-        val casted = mutableListOf<Boolean>()
-        var last = 0
-        for (p in scanPlaceholders(body)) {
-            out.append(body, last, p.start)
-            val known = names.indexOf(p.name)
-            if (known >= 0) {
-                out.append('$').append(known + 1)
-            } else {
-                val cast = paramTypes?.getOrNull(names.size)?.let(::castType)
-                names += p.name
-                casted += cast != null
-                if (cast != null) out.append("CAST($${names.size} AS $cast)") else out.append('$').append(names.size)
-            }
-            last = p.end
-        }
-        out.append(body, last, body.length)
-        val bind =
-            names.mapIndexed { i, name ->
-                val value = lookup(params, name)
-                if (casted[i]) value else textForm(value)
-            }
-        return Statement(out.toString(), bind)
-    }
-}
-
-/**
- * The PostgreSQL dialect for JDBC drivers, which only know `?` placeholders.
- * Every occurrence of a `:name` placeholder becomes its own `?` (repeated
- * names bind their value again), and [paramTypes] are the server-declared
- * types per occurrence. A literal `?` outside quotes and comments (jsonb
- * operators) is written `??`, the JDBC escape for a question mark.
- */
-object PostgresJdbcDialect : Dialect {
-    override val name = "postgres-jdbc"
 
     override fun prepare(
         sql: String,

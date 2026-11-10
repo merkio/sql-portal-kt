@@ -22,7 +22,6 @@ nimbus-jose-jwt = "10.10"
 bouncycastle = "1.86"
 clikt = "5.1.0"
 kotest = "6.2.6"
-mockk = "1.14.12"
 testcontainers = "2.0.5"
 ktlint-plugin = "14.2.0"
 detekt = "2.0.0-alpha.6"
@@ -31,7 +30,6 @@ jacoco = "0.8.14"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
-kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 ktor-server-core = { module = "io.ktor:ktor-server-core", version.ref = "ktor" }
@@ -44,8 +42,6 @@ ktor-server-forwarded-header = { module = "io.ktor:ktor-server-forwarded-header"
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-java = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }
-ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
-ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
 koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
 
@@ -70,7 +66,6 @@ clikt-core = { module = "com.github.ajalt.clikt:clikt-core", version.ref = "clik
 
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
-mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
 testcontainers-clickhouse = { module = "org.testcontainers:testcontainers-clickhouse", version.ref = "testcontainers" }

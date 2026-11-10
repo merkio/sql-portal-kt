@@ -35,10 +35,12 @@ import io.merkio.sqlportal.domain.access.Principal
 import io.merkio.sqlportal.domain.access.User
 import io.merkio.sqlportal.domain.query.PageRequest
 import io.merkio.sqlportal.domain.query.QueryException
+import io.merkio.sqlportal.domain.scripts.ChartOutcome
 import io.merkio.sqlportal.domain.scripts.MAX_PAGE_SIZE
 import io.merkio.sqlportal.domain.scripts.ParamKind
 import io.merkio.sqlportal.domain.scripts.ScriptDefinition
 import io.merkio.sqlportal.domain.scripts.ScriptException
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.add
@@ -48,6 +50,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import org.slf4j.event.Level
 import java.util.UUID
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Installs every route and cross-cutting plugin of the portal: sessions,
@@ -80,7 +83,7 @@ fun Application.portal(
     install(Sessions) {
         cookie<PortalSession>(
             settings.cookieName,
-            ExpiringMemoryStorage(kotlin.time.Duration.parse("${settings.sessionTtlMinutes}m")),
+            ExpiringMemoryStorage(settings.sessionTtlMinutes.minutes),
         ) {
             serializer = PortalSessionSerializer
             cookie.path = "/"
@@ -353,7 +356,7 @@ private class Handlers(
                 )
             try {
                 val run = state.scripts.run(authorized, params, page)
-                val withCharts = run.charts.any { it is io.merkio.sqlportal.domain.scripts.ChartOutcome.Drawn }
+                val withCharts = run.charts.any { it is ChartOutcome.Drawn }
                 html(
                     HttpStatusCode.OK,
                     script.title,
@@ -417,7 +420,7 @@ private class Handlers(
             put("title", run.script.title)
             putJsonArray("columns") { run.result.columns.forEach { add(it) } }
             putJsonArray("rows") {
-                for (row in run.result.rows) add(kotlinx.serialization.json.JsonArray(row.map(::jsonOf)))
+                for (row in run.result.rows) add(JsonArray(row.map(::jsonOf)))
             }
             put("truncated", run.result.truncated)
             put("duration_ms", run.duration.inWholeMilliseconds)

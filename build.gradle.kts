@@ -128,9 +128,10 @@ val checkArchitecture = tasks.register("checkArchitecture") {
         // Domain: model and ports only.
         within(":sql-portal:domain", ":datasources:sql-executor")
         forbid(":sql-portal:domain", *infrastructure)
-        // Application: use cases over the domain.
+        // Application: use cases over the domain; it may log and suspend, nothing more.
+        val applicationMayUse = setOf("org.slf4j", "org.jetbrains.kotlinx:kotlinx-coroutines")
         within(":sql-portal:application", ":sql-portal:domain")
-        forbid(":sql-portal:application", *infrastructure.filter { it != "org.slf4j" && !it.contains("coroutines") }.toTypedArray())
+        forbid(":sql-portal:application", *(infrastructure.toSet() - applicationMayUse).toTypedArray())
         // Adapters implement domain ports over the datasources; no HTTP server.
         within(
             ":sql-portal:adapters",
