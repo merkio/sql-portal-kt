@@ -41,7 +41,7 @@ coverage:
 # Known vulnerabilities (HIGH, CRITICAL) in the jars of the distribution, with
 # Trivy in a container: no account or API key needed. Reviewed exceptions go to
 # config/trivyignore. `:z` lets SELinux hosts (Podman) share the files.
-TRIVY_IMAGE ?= docker.io/aquasec/trivy:0.58.1
+TRIVY_IMAGE ?= docker.io/aquasec/trivy:0.70.0
 audit:
 	$(GRADLE) :sql-portal:deployment:installDist
 	docker run --rm \

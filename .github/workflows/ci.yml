@@ -134,7 +134,7 @@ jobs:
         run: ./gradlew :sql-portal:deployment:installDist
       # Scans the jars that ship; no account or API key needed.
       - name: Known vulnerabilities in the shipped jars
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: rootfs
           scan-ref: sql-portal/deployment/build/install/script-portal/lib
