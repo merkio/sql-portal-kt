@@ -431,16 +431,6 @@ killed before cleanup, `make test-docker-clean` removes leftovers.
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-## Differences from the Rust version
-
-- **Configuration format:** HOCON (`*.conf`) instead of YAML. Environment values use HOCON substitution
-  (`key = default` then `key = ${?VAR}`) instead of `${VAR:-default}`; an empty variable counts as set.
-- **No GitHub sign-in.** LDAP and OIDC only.
-- **Logging:** `SCRIPT_PORTAL_LOG` instead of `RUST_LOG`; `log_level` takes a root level with `logger=level` overrides.
-- **Releases** ship one JVM distribution for all platforms instead of native binaries per target.
-- **Types:** SQLite `BOOLEAN` columns decode without a `CAST`; PostgreSQL `timestamptz` is rendered in the JVM time zone.
-- **Metrics text:** Micrometer writes counter values as `1.0` and sorts labels alphabetically.
-
 ## License
 
 MIT
