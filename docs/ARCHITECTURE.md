@@ -10,8 +10,8 @@ rejects it.
 - `settings.gradle.kts` includes the build `build-plugins/` (convention plugins `sqlportal.kotlin-library` and
   `sqlportal.kotlin-serialization`: JVM 21 toolchain, warnings as errors, Kotest on JUnit 5, ktlint, detekt, JaCoCo).
 - `gradle/libs.versions.toml` holds every library and plugin version, for the modules and for `build-plugins`.
-- The root `build.gradle.kts` adds the aggregated coverage report and gate, the OWASP dependency check and
-  `checkArchitecture`.
+- The root `build.gradle.kts` adds the aggregated coverage report and gate and `checkArchitecture`. The
+  dependency audit is `make audit` (Trivy over the shipped jars).
 
 ## Modules
 

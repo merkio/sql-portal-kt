@@ -120,7 +120,7 @@ jobs:
           [ -z "$left" ] || { docker ps -a --filter label=org.sql-portal.integration-test=true; exit 1; }
 
   audit:
-    name: Dependency audit (OWASP)
+    name: Dependency audit (Trivy)
     runs-on: ubuntu-latest
     continue-on-error: true   # advisories should be visible but not block unrelated PRs
     steps:
@@ -130,12 +130,15 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Dependency check
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: ./gradlew dependencyCheckAnalyze
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Build the distribution
+        run: ./gradlew :sql-portal:deployment:installDist
+      # Scans the jars that ship; no account or API key needed.
+      - name: Known vulnerabilities in the shipped jars
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          name: dependency-check-report
-          path: build/reports/dependency-check-report.html
+          scan-type: rootfs
+          scan-ref: sql-portal/deployment/build/install/script-portal/lib
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          trivyignores: config/trivyignore
+          exit-code: "1"

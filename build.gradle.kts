@@ -3,7 +3,6 @@ import org.gradle.api.artifacts.ProjectDependency
 plugins {
     base
     jacoco
-    alias(libs.plugins.dependency.check)
 }
 
 allprojects {
@@ -61,16 +60,6 @@ val jacocoCoverageVerification = tasks.register<JacocoCoverageVerification>("jac
             }
         }
     }
-}
-
-// ------------------------------------------------------- dependency audit
-
-dependencyCheck {
-    // CI passes an NVD API key; without one the first run downloads slowly.
-    nvd.apiKey = providers.environmentVariable("NVD_API_KEY").orNull
-    failBuildOnCVSS = 7.0f
-    suppressionFile = "config/dependency-check-suppressions.xml"
-    scanConfigurations = listOf("runtimeClasspath")
 }
 
 // --------------------------------------------------- architecture rules

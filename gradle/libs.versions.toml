@@ -24,7 +24,7 @@ kotest = "6.2.6"
 testcontainers = "2.0.5"
 ktlint-plugin = "14.2.0"
 detekt = "2.0.0-alpha.6"
-dependency-check = "13.0.0"
+jackson = "3.2.4"
 jacoco = "0.8.14"
 
 [libraries]
@@ -58,6 +58,8 @@ kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = 
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-encoder" }
+# The encoder brings Jackson 3.0.1, which has known vulnerabilities; the BOM raises it.
+jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
 
 freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker" }
 unboundid-ldapsdk = { module = "com.unboundid:unboundid-ldapsdk", version.ref = "unboundid" }
@@ -78,6 +80,3 @@ detekt-gradle-plugin = { module = "dev.detekt:detekt-gradle-plugin", version.ref
 
 [bundles]
 kotest = ["kotest-runner-junit5", "kotest-assertions-core"]
-
-[plugins]
-dependency-check = { id = "org.owasp.dependencycheck", version.ref = "dependency-check" }

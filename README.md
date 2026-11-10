@@ -437,7 +437,7 @@ make test         # unit + in-process integration tests; no Docker needed
 make test-docker  # everything above + PostgreSQL, ClickHouse and the portal image (builds it first)
 make test-e2e     # only the end-to-end checks of the portal image
 make coverage     # JaCoCo report over all modules; fails below COVERAGE_MIN (70) percent of lines
-make audit        # OWASP dependency check (set NVD_API_KEY)
+make audit        # known HIGH/CRITICAL vulnerabilities in the shipped jars (Trivy in a container, no API key)
 ```
 
 Versions of every library and plugin are in `gradle/libs.versions.toml`; the build conventions (JVM 21 toolchain, Kotest
@@ -469,8 +469,8 @@ killed before cleanup, `make test-docker-clean` removes leftovers.
 
 - `.github/workflows/ci.yml` runs on every pull request: ktlint, detekt and the architecture rules, the tests and the
   bundled configuration of every environment, coverage (JaCoCo, fails below `COVERAGE_MIN`, default 70 %), the container tests against a
-  freshly built image, and the OWASP dependency check
-  (secret `NVD_API_KEY` recommended).
+  freshly built image, and the dependency audit (Trivy over the shipped jars, no secret needed; reviewed exceptions in
+  `config/trivyignore`).
 - `.github/workflows/release.yml` runs on tags like `v1.2.3`: it re-runs the build (the tag must match `version` in
   `gradle.properties`), attaches the JVM distribution (`.tar.gz` and `.zip`, with checksums; runs anywhere with Java 21)
   to the GitHub release, and pushes a multi-arch image to Docker Hub. Configure the secrets `DOCKERHUB_USERNAME` and

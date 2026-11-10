@@ -38,9 +38,18 @@ coverage:
 	$(GRADLE) test jacocoAggregateReport jacocoCoverageVerification
 	@echo "Report: build/reports/jacoco/jacocoAggregateReport/html/index.html"
 
-# OWASP dependency check; set NVD_API_KEY to speed up the first run.
+# Known vulnerabilities (HIGH, CRITICAL) in the jars of the distribution, with
+# Trivy in a container: no account or API key needed. Reviewed exceptions go to
+# config/trivyignore. `:z` lets SELinux hosts (Podman) share the files.
+TRIVY_IMAGE ?= docker.io/aquasec/trivy:0.58.1
 audit:
-	$(GRADLE) dependencyCheckAnalyze
+	$(GRADLE) :sql-portal:deployment:installDist
+	docker run --rm \
+	  -v $(CURDIR)/sql-portal/deployment/build/install/script-portal/lib:/app/lib:ro,z \
+	  -v $(CURDIR)/config/trivyignore:/trivyignore:ro,z \
+	  -v trivy-cache:/root/.cache \
+	  $(TRIVY_IMAGE) rootfs --no-progress --scanners vuln --severity HIGH,CRITICAL \
+	  --ignorefile /trivyignore --exit-code 1 /app/lib
 
 # APP_ENV selects the bundled environment (local, k8s, uat, prod); local by default.
 APP_ENV ?= local

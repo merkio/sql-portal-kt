@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.kotlin.logging)
     implementation(libs.logback.classic)
     implementation(libs.logstash.logback.encoder)
+    implementation(platform(libs.jackson.bom))
 
     // `-Pdatabases=postgres` (or sqlite, or both) packages only those drivers.
     val databases =
