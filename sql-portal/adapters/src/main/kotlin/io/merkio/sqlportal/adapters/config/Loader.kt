@@ -19,7 +19,7 @@ sealed class ConfigError(
     class Io(
         path: String,
         cause: Throwable,
-    ) : ConfigError("cannot read '$path': ${cause.message}", cause)
+    ) : ConfigError("cannot read '$path': ${describe(cause)}", cause)
 
     class Syntax(
         detail: String,
@@ -36,6 +36,13 @@ sealed class ConfigError(
         cause: Throwable? = null,
     ) : ConfigError("invalid configuration: $detail", cause)
 }
+
+private fun describe(e: Throwable): String =
+    when (e) {
+        is java.nio.file.NoSuchFileException -> "no such file"
+        is java.nio.file.AccessDeniedException -> "permission denied"
+        else -> e.message ?: e.toString()
+    }
 
 /** A parsed configuration plus the directory used to resolve relative paths. */
 class LoadedConfig(

@@ -13,7 +13,7 @@ dependencies {
     implementation(projects.common.prometheusMetrics)
 
     implementation(libs.koin.core)
-    implementation(libs.clikt)
+    implementation(libs.clikt.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.slf4j.api)
@@ -33,6 +33,14 @@ dependencies {
 
     testImplementation(projects.sqlPortal.testing)
     testRuntimeOnly(libs.sqlite.jdbc)
+}
+
+tasks.jar {
+    manifest { attributes("Implementation-Version" to project.version) }
+}
+
+tasks.test {
+    systemProperty("sqlportal.repoRoot", rootDir.absolutePath)
 }
 
 application {

@@ -7,6 +7,7 @@ import io.ktor.http.withCharset
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
+import io.ktor.server.plugins.autohead.AutoHeadResponse
 import io.ktor.server.plugins.callid.CallId
 import io.ktor.server.plugins.callid.callIdMdc
 import io.ktor.server.plugins.calllogging.CallLogging
@@ -61,6 +62,7 @@ fun Application.portal(
         // A secure cookie needs HTTPS; behind a TLS-terminating proxy the scheme comes from X-Forwarded-Proto.
         install(XForwardedHeaders)
     }
+    install(AutoHeadResponse)
     install(CallId) {
         retrieveFromHeader("X-Request-Id")
         generate { UUID.randomUUID().toString() }

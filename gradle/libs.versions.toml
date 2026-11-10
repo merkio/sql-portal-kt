@@ -39,6 +39,7 @@ ktor-server-cio = { module = "io.ktor:ktor-server-cio", version.ref = "ktor" }
 ktor-server-sessions = { module = "io.ktor:ktor-server-sessions", version.ref = "ktor" }
 ktor-server-call-id = { module = "io.ktor:ktor-server-call-id", version.ref = "ktor" }
 ktor-server-call-logging = { module = "io.ktor:ktor-server-call-logging", version.ref = "ktor" }
+ktor-server-auto-head-response = { module = "io.ktor:ktor-server-auto-head-response", version.ref = "ktor" }
 ktor-server-forwarded-header = { module = "io.ktor:ktor-server-forwarded-header", version.ref = "ktor" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
@@ -65,7 +66,7 @@ freemarker = { module = "org.freemarker:freemarker", version.ref = "freemarker" 
 unboundid-ldapsdk = { module = "com.unboundid:unboundid-ldapsdk", version.ref = "unboundid" }
 nimbus-jose-jwt = { module = "com.nimbusds:nimbus-jose-jwt", version.ref = "nimbus-jose-jwt" }
 bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
-clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
+clikt-core = { module = "com.github.ajalt.clikt:clikt-core", version.ref = "clikt" }
 
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }

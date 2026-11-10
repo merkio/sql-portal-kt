@@ -12,6 +12,7 @@ dependencies {
     implementation(libs.ktor.server.call.id)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.forwarded.header)
+    implementation(libs.ktor.server.auto.head.response)
     implementation(libs.slf4j.api)
     api(libs.micrometer.core)
 
