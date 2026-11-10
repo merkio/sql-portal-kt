@@ -26,7 +26,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew ktlintCheck detekt checkArchitecture
 
   test:
@@ -38,7 +38,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Unit and in-process integration tests (no Docker)
         run: ./gradlew test
       - uses: actions/upload-artifact@v4
@@ -58,7 +58,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Collect coverage (fails below COVERAGE_MIN)
         run: ./gradlew test jacocoAggregateReport jacocoCoverageVerification
       - name: Coverage summary
@@ -99,7 +99,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - uses: docker/setup-buildx-action@v4
       - name: Build image
         uses: docker/build-push-action@v6
@@ -129,7 +129,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Build the distribution
         run: ./gradlew :sql-portal:deployment:installDist
       # Scans the jars that ship; no account or API key needed.
