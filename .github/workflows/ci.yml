@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Minimum line coverage (percent) enforced on pull requests.
+  COVERAGE_MIN: "70"
+
+jobs:
+  lint:
+    name: Lint (ktlint, detekt, architecture rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew ktlintCheck detekt checkArchitecture
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit and in-process integration tests (no Docker)
+        run: ./gradlew test
+      - name: Validate shipped configuration files
+        run: |
+          ./gradlew :sql-portal:deployment:installDist
+          bin=sql-portal/deployment/build/install/script-portal/bin/script-portal
+          "$bin" --config config/config.demo.conf check-config
+          "$bin" --config config/config.conf check-config
+          DATABASE_URL="sqlite::memory:" LDAP_BIND_PASSWORD=x OIDC_CLIENT_SECRET=y \
+            "$bin" --config config/config.example.conf check-config
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-reports
+          path: "**/build/reports/tests/"
+
+  coverage:
+    name: Test coverage
+    runs-on: ubuntu-latest
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Collect coverage (fails below COVERAGE_MIN)
+        run: ./gradlew test jacocoAggregateReport jacocoCoverageVerification
+      - name: Coverage summary
+        if: always()
+        run: |
+          report=build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
+          [ -f "$report" ] || exit 0
+          python3 - "$report" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import re, sys
+          xml = open(sys.argv[1]).read()
+          tail = xml[xml.rindex('</package>'):]
+          print('### Test coverage\n\n| counter | covered |\n|---|---|')
+          for kind, missed, covered in re.findall(r'<counter type="(\w+)" missed="(\d+)" covered="(\d+)"/>', tail):
+              total = int(missed) + int(covered)
+              print(f'| {kind.lower()} | {100 * int(covered) / total:.1f}% |')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: build/reports/jacoco/jacocoAggregateReport/
+      - name: Upload to Codecov (optional)
+        if: ${{ always() && env.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: build/reports/jacoco/jacocoAggregateReport/jacocoAggregateReport.xml
+          fail_ci_if_error: false
+
+  docker:
+    name: Container tests (PostgreSQL, ClickHouse, portal image)
+    runs-on: ubuntu-latest
+    env:
+      SCRIPT_PORTAL_IMAGE: script-portal:test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: ${{ env.SCRIPT_PORTAL_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # Starts and removes its own containers (Testcontainers).
+      - name: Container tests
+        run: ./gradlew :sql-portal:integration-tests:test -Pdocker
+      # Docker honours HEALTHCHECK (Podman ignores it in OCI images), so check it here.
+      - name: Built-in HEALTHCHECK reports healthy
+        run: |
+          docker run -d --name portal "$SCRIPT_PORTAL_IMAGE"
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' portal)
+            [ "$status" = "healthy" ] && break
+            sleep 2
+          done
+          docker logs portal | tail -20
+          docker rm -f portal
+          test "$status" = "healthy"
+      - name: Leftover test containers
+        if: always()
+        run: |
+          left=$(docker ps -aq --filter label=org.sql-portal.integration-test=true)
+          [ -z "$left" ] || { docker ps -a --filter label=org.sql-portal.integration-test=true; exit 1; }
+
+  audit:
+    name: Dependency audit (OWASP)
+    runs-on: ubuntu-latest
+    continue-on-error: true   # advisories should be visible but not block unrelated PRs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Dependency check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: ./gradlew dependencyCheckAnalyze
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: build/reports/dependency-check-report.html

@@ -15,16 +15,18 @@ allprojects {
 // One report over every module; `jacocoCoverageVerification` fails below
 // COVERAGE_MIN percent of lines (default 70), as in CI.
 
-val coveredProjects =
-    subprojects.filter { it.path !in setOf(":sql-portal:testing", ":sql-portal:integration-tests") }
+/** Modules with code; the group directories (:common, ...) have no build file. */
+val modules = subprojects.filter { it.buildFile.exists() }
+
+val coveredProjects = modules.filter { it.path !in setOf(":sql-portal:testing", ":sql-portal:integration-tests") }
 
 val coverageMin = providers.environmentVariable("COVERAGE_MIN").orElse("70").map { it.toBigDecimal().movePointLeft(2) }
 
 val coverageExecutionData =
-    files(subprojects.map { it.layout.buildDirectory.file("jacoco/test.exec") }).filter { it.exists() }
+    files(modules.map { it.layout.buildDirectory.file("jacoco/test.exec") }).filter { it.exists() }
 
 fun JacocoReportBase.coverageInputs() {
-    dependsOn(subprojects.map { "${it.path}:test" })
+    dependsOn(modules.map { "${it.path}:test" })
     executionData(coverageExecutionData)
     sourceDirectories.from(coveredProjects.map { it.file("src/main/kotlin") })
     classDirectories.from(
@@ -79,7 +81,7 @@ private val productionConfigurations = setOf("api", "implementation", "compileOn
 
 val dependencyGraph =
     provider {
-        subprojects.associate { p ->
+        modules.associate { p ->
             p.path to
                 p.configurations
                     .filter { it.name in productionConfigurations }
