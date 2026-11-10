@@ -22,8 +22,9 @@ RUN --mount=type=cache,target=/root/.gradle \
     && chmod -R a+rX /opt/script-portal
 
 # ---------- runtime stage -----------------------------------------------------
-# distroless/java21: a JRE and CA certificates, no shell, runs as non-root.
-FROM gcr.io/distroless/java21-debian12:nonroot AS runtime
+# distroless/java25: a JRE and CA certificates, no shell, runs as non-root.
+# The Java version must match the build stage and `java` in gradle/libs.versions.toml.
+FROM gcr.io/distroless/java25-debian13:nonroot AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="script-portal" \

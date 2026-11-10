@@ -10,3 +10,8 @@ updates:
   - package-ecosystem: docker
     directory: /
     schedule: { interval: weekly }
+    ignore:
+      # A new Java major must change the build stage, the distroless runtime
+      # (whose tag Dependabot cannot bump), the toolchain and CI together.
+      - dependency-name: eclipse-temurin
+        update-types: [version-update:semver-major]

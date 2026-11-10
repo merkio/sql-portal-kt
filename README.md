@@ -56,7 +56,7 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layer rules.
 
 ## Quick start
 
-Requirements: JDK 21 (the Gradle wrapper fetches everything else).
+Requirements: JDK 25 (the Gradle wrapper fetches everything else).
 
 ```bash
 # APP_ENV=local (default): authentication disabled, in-memory SQLite with generated sales data
@@ -440,7 +440,7 @@ make coverage     # JaCoCo report over all modules; fails below COVERAGE_MIN (70
 make audit        # known HIGH/CRITICAL vulnerabilities in the shipped jars (Trivy in a container, no API key)
 ```
 
-Versions of every library and plugin are in `gradle/libs.versions.toml`; the build conventions (JVM 21 toolchain, Kotest
+Versions of every library and plugin are in `gradle/libs.versions.toml`; the build conventions (Java 25 toolchain, Kotest
 on JUnit 5, ktlint, detekt, JaCoCo) are plugins in the included build `build-plugins/`. `./gradlew build` runs compilation,
 lint, detekt, every test without containers, and `checkArchitecture`.
 
@@ -472,7 +472,7 @@ killed before cleanup, `make test-docker-clean` removes leftovers.
   freshly built image, and the dependency audit (Trivy over the shipped jars, no secret needed; reviewed exceptions in
   `config/trivyignore`).
 - `.github/workflows/release.yml` runs on tags like `v1.2.3`: it re-runs the build (the tag must match `version` in
-  `gradle.properties`), attaches the JVM distribution (`.tar.gz` and `.zip`, with checksums; runs anywhere with Java 21)
+  `gradle.properties`), attaches the JVM distribution (`.tar.gz` and `.zip`, with checksums; runs anywhere with Java 25)
   to the GitHub release, and pushes a multi-arch image to Docker Hub. Configure the secrets `DOCKERHUB_USERNAME` and
   `DOCKERHUB_TOKEN` (and optionally the variable `DOCKERHUB_REPOSITORY`).
 

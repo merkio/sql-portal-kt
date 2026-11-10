@@ -1,4 +1,4 @@
-// Conventions for every Kotlin module: JVM 21 toolchain, Kotest on JUnit 5,
+// Conventions for every Kotlin module: the Java toolchain of the version catalog (`java`), Kotest on JUnit 5,
 // ktlint, detekt and JaCoCo.
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
@@ -12,7 +12,7 @@ plugins {
 val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(libs.versions.java.get().toInt())
     compilerOptions {
         allWarningsAsErrors.set(true)
     }

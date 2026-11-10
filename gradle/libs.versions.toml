@@ -3,6 +3,8 @@
 # reads the same file, so convention plugins use the same versions.
 
 [versions]
+# The Java version of the toolchain. Keep the Dockerfile (both stages) and the workflows on the same version.
+java = "25"
 kotlin = "2.4.21"
 ktor = "3.6.1"
 koin = "4.2.2"

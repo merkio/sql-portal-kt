@@ -38,7 +38,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew build
 
@@ -51,9 +51,9 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
       - uses: gradle/actions/setup-gradle@v4
-      # One archive runs on every OS with Java 21: bin/script-portal (Unix) and
+      # One archive runs on every OS with Java 25: bin/script-portal (Unix) and
       # bin/script-portal.bat (Windows); the configuration is bundled in the jar.
       - name: Build archives
         run: |
