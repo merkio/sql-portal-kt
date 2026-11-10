@@ -26,5 +26,14 @@ dependencies {
 tasks.test {
     // The tests read config/ and build the image from the repository root.
     systemProperty("sqlportal.repoRoot", rootDir.absolutePath)
-    providers.environmentVariable("SCRIPT_PORTAL_IMAGE").orNull?.let { environment("SCRIPT_PORTAL_IMAGE", it) }
+    // The image for the end-to-end tests (built with `make image-test`).
+    environment(
+        "SCRIPT_PORTAL_IMAGE",
+        providers.environmentVariable("SCRIPT_PORTAL_IMAGE").getOrElse("script-portal:test"),
+    )
+    // Containers are removed by the tests themselves (Ryuk does not run on every Podman setup).
+    environment(
+        "TESTCONTAINERS_RYUK_DISABLED",
+        providers.environmentVariable("TESTCONTAINERS_RYUK_DISABLED").getOrElse("true"),
+    )
 }

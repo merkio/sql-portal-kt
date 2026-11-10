@@ -67,7 +67,7 @@ class LdapAuthenticator(
                 user.copy(groups = user.groups + extra)
             }
         } catch (e: LDAPException) {
-            throw AuthException.ProviderUnavailable(e.message ?: e.resultCode.toString()).apply { initCause(e) }
+            throw AuthException.ProviderUnavailable(e.message ?: e.resultCode.toString(), e)
         }
 
     private fun verifyPassword(
@@ -78,13 +78,11 @@ class LdapAuthenticator(
             try {
                 asUser.bind(dn, password)
             } catch (e: LDAPException) {
-                val failure =
-                    if (e.resultCode == ResultCode.INVALID_CREDENTIALS) {
-                        AuthException.InvalidCredentials()
-                    } else {
-                        AuthException.ProviderUnavailable("unexpected LDAP result ${e.resultCode}")
-                    }
-                throw failure.apply { initCause(e) }
+                throw if (e.resultCode == ResultCode.INVALID_CREDENTIALS) {
+                    AuthException.InvalidCredentials(e)
+                } else {
+                    AuthException.ProviderUnavailable("unexpected LDAP result ${e.resultCode}", e)
+                }
             }
         }
     }
@@ -128,7 +126,7 @@ class LdapAuthenticator(
             } catch (e: LDAPException) {
                 if (e.resultCode != ResultCode.SIZE_LIMIT_EXCEEDED) throw e
                 log.warn("ambiguous LDAP user filter matched several entries")
-                throw AuthException.InvalidCredentials().apply { initCause(e) }
+                throw AuthException.InvalidCredentials(e)
             }
         return when (entries.size) {
             1 -> entries.single()

@@ -1,10 +1,10 @@
 // `script-portal` command: CLI, configuration loading and the HTTP server.
 package io.merkio.sqlportal.deployment
 
-import com.github.ajalt.clikt.core.CoreCliktCommand
-import com.github.ajalt.clikt.core.Context
-import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.CliktError
+import com.github.ajalt.clikt.core.Context
+import com.github.ajalt.clikt.core.CoreCliktCommand
+import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.options.default
@@ -27,7 +27,15 @@ import kotlin.system.exitProcess
 
 private val log = LoggerFactory.getLogger("io.merkio.sqlportal.deployment.Main")
 
-class Cli : CoreCliktCommand(name = "script-portal") {
+/** The command line; [env] reads environment variables (SCRIPT_PORTAL_CONFIG). */
+class Cli(
+    env: (String) -> String? = System::getenv,
+) : CoreCliktCommand(name = "script-portal") {
+    init {
+        // clikt-core reads no environment variables unless told how.
+        configureContext { readEnvvar = env }
+    }
+
     val config by option(
         "-c",
         "--config",
@@ -145,9 +153,15 @@ private fun serve(config: Path) {
 private const val GRACE_MS = 1_000L
 private const val STOP_TIMEOUT_MS = 10_000L
 
-fun main(args: Array<String>) {
-    val cli = Cli()
+/** The full command with its subcommands. */
+fun portalCommand(env: (String) -> String? = System::getenv): Cli {
+    val cli = Cli(env)
     cli.subcommands(Serve(cli), CheckConfig(cli), Healthcheck())
+    return cli
+}
+
+fun main(args: Array<String>) {
+    val cli = portalCommand()
     try {
         cli.parse(args)
     } catch (e: CliktError) {

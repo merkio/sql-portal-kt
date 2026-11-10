@@ -49,7 +49,7 @@ class ClickHouseExecutor private constructor(
                     setBody(sql)
                 }
             } catch (e: HttpRequestTimeoutException) {
-                throw QueryException.Timeout().apply { initCause(e) }
+                throw QueryException.Timeout(e)
             } catch (e: ConnectException) {
                 throw QueryException.Unavailable(e.message ?: "cannot connect", e)
             } catch (e: IOException) {

@@ -94,7 +94,7 @@ class OidcAdapter(
             try {
                 http.get(url)
             } catch (e: IOException) {
-                throw AuthException.ProviderUnavailable(e.message ?: e.toString()).apply { initCause(e) }
+                throw AuthException.ProviderUnavailable(e.message ?: e.toString(), e)
             }
         if (!response.status.isSuccess()) throw AuthException.ProviderUnavailable("$url answered ${response.status}")
         return response.bodyAsText()
@@ -105,10 +105,7 @@ class OidcAdapter(
             try {
                 discovery()
             } catch (e: SerializationException) {
-                throw AuthException
-                    .ProviderUnavailable(
-                        "invalid discovery document: ${e.message}",
-                    ).apply { initCause(e) }
+                throw AuthException.ProviderUnavailable("invalid discovery document: ${e.message}", e)
             }
         val pending = OidcPending(state = random(), nonce = random(), pkceVerifier = random())
         val url =
@@ -150,7 +147,7 @@ class OidcAdapter(
                     cfg.clientSecret?.let { basicAuth(formEncode(cfg.clientId), formEncode(it)) }
                 }
             } catch (e: IOException) {
-                throw AuthException.ProviderUnavailable(e.message ?: e.toString()).apply { initCause(e) }
+                throw AuthException.ProviderUnavailable(e.message ?: e.toString(), e)
             }
         val body = response.bodyAsText()
         if (!response.status.isSuccess()) throw AuthException.Rejected("token exchange failed: ${response.status}")
@@ -158,7 +155,7 @@ class OidcAdapter(
             try {
                 JSON.decodeFromString<TokenResponse>(body).idToken
             } catch (e: SerializationException) {
-                throw AuthException.Rejected("token exchange failed: ${e.message}").apply { initCause(e) }
+                throw AuthException.Rejected("token exchange failed: ${e.message}", e)
             } ?: throw AuthException.Rejected("provider returned no ID token")
         val claims = verify(idToken, d, pending.nonce)
         return userFromClaims(claims.toJSONObject(), cfg) ?: throw AuthException.Rejected("ID token has no subject")
@@ -174,7 +171,7 @@ class OidcAdapter(
             try {
                 SignedJWT.parse(token)
             } catch (e: ParseException) {
-                throw AuthException.Rejected("malformed ID token").apply { initCause(e) }
+                throw AuthException.Rejected("malformed ID token", e)
             }
         val cached = lock.withLock { keys }
         val current = cached ?: loadKeys(d)
@@ -197,7 +194,7 @@ class OidcAdapter(
             try {
                 JWKSet.parse(fetchText(d.jwksUri))
             } catch (e: ParseException) {
-                throw AuthException.ProviderUnavailable("invalid JWKS: ${e.message}").apply { initCause(e) }
+                throw AuthException.ProviderUnavailable("invalid JWKS: ${e.message}", e)
             }
         lock.withLock { keys = set }
         return set
@@ -228,8 +225,7 @@ class OidcAdapter(
         discovery()
     }
 
-    private fun rejected(e: Exception) =
-        AuthException.Rejected("ID token verification failed: ${e.message}").apply { initCause(e) }
+    private fun rejected(e: Exception) = AuthException.Rejected("ID token verification failed: ${e.message}", e)
 
     private companion object {
         val JSON = Json { ignoreUnknownKeys = true }

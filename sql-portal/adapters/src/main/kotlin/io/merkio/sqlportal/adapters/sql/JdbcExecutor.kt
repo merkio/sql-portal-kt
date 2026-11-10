@@ -9,16 +9,16 @@ import io.merkio.sqlportal.domain.query.QueryResult
 import io.merkio.sqlportal.sqlexecutor.Cell
 import io.merkio.sqlportal.sqlexecutor.DialectException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.SQLException
 import java.sql.SQLTimeoutException
 import java.sql.SQLTransientConnectionException
 import java.sql.Types
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.ceil
 
@@ -45,14 +45,28 @@ abstract class JdbcExecutor(
         running: AtomicReference<PreparedStatement?>,
     ): QueryResult
 
+    /**
+     * Runs the query on the IO dispatcher. A watchdog cancels the running
+     * statement when the timeout passes; whatever the driver then reports, the
+     * outcome is a timeout.
+     */
     override suspend fun execute(request: QueryRequest): QueryResult =
-        coroutineScope {
+        withContext(Dispatchers.IO) {
             val running = AtomicReference<PreparedStatement?>()
-            val work = async(Dispatchers.IO) { translate { pool.connection.use { fetch(it, request, running) } } }
-            withTimeoutOrNull(request.timeout) { work.await() } ?: run {
-                runCatching { running.get()?.cancel() }
-                work.cancel()
-                throw QueryException.Timeout()
+            val timedOut = AtomicBoolean(false)
+            val watchdog =
+                launch {
+                    delay(request.timeout)
+                    timedOut.set(true)
+                    runCatching { running.get()?.cancel() }
+                }
+            try {
+                translate { pool.connection.use { fetch(it, request, running) } }
+            } catch (e: QueryException) {
+                if (timedOut.get()) throw QueryException.Timeout(e)
+                throw e
+            } finally {
+                watchdog.cancel()
             }
         }
 
@@ -90,7 +104,7 @@ abstract class JdbcExecutor(
         } catch (e: DialectException) {
             throw QueryException.Database(e.message.orEmpty(), e)
         } catch (e: SQLTimeoutException) {
-            throw QueryException.Timeout().apply { initCause(e) }
+            throw QueryException.Timeout(e)
         } catch (e: SQLException) {
             throw mapError(e)
         }

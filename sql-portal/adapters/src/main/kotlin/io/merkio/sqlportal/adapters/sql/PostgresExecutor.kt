@@ -3,7 +3,7 @@ package io.merkio.sqlportal.adapters.sql
 import com.zaxxer.hikari.HikariConfig
 import io.merkio.sqlportal.common.tls.TlsOptions
 import io.merkio.sqlportal.dialect.postgres.Kind
-import io.merkio.sqlportal.dialect.postgres.PostgresDialect
+import io.merkio.sqlportal.dialect.postgres.PostgresJdbcDialect
 import io.merkio.sqlportal.dialect.postgres.numericCell
 import io.merkio.sqlportal.dialect.postgres.wrapResult
 import io.merkio.sqlportal.domain.common.Value
@@ -36,7 +36,7 @@ class PostgresExecutor private constructor(
         val params = cellsOf(request.params)
 
         // 1. Describe the statement with untyped parameters.
-        val plain = PostgresDialect.prepare(request.sql, params)
+        val plain = PostgresJdbcDialect.prepare(request.sql, params)
         val (paramTypes, columns) =
             connection.prepareStatement(plain.sql).use { ps ->
                 running.set(ps)
@@ -47,7 +47,7 @@ class PostgresExecutor private constructor(
             }
 
         // 2. Prepare again with the declared parameter types (casts), 3. wrap so every column decodes.
-        val typed = PostgresDialect.prepare(request.sql, params, paramTypes)
+        val typed = PostgresJdbcDialect.prepare(request.sql, params, paramTypes)
         val wrapped = wrapResult(typed.sql, columns)
         val sql = wrapped?.sql ?: typed.sql
         val kinds = wrapped?.kinds.orEmpty()

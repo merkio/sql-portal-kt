@@ -54,6 +54,28 @@ class PostgresDialectTest :
             numericCell("NaN").shouldBeInstanceOf<Cell.Float>().value.isNaN() shouldBe true
         }
 
+        test("the JDBC style binds every occurrence, typed per occurrence") {
+            val st =
+                PostgresJdbcDialect.prepare(
+                    "SELECT :a, :d, :a;",
+                    listOf("a" to Cell.Int(7), "d" to Cell.Text("2024-01-02")),
+                    listOf("int8", "date", "text"),
+                )
+            st.sql shouldBe "SELECT CAST(? AS int8), CAST(? AS date), ?"
+            st.bind shouldBe listOf(Cell.Int(7), Cell.Text("2024-01-02"), Cell.Text("7"))
+        }
+
+        test("the JDBC style escapes literal question marks in code only") {
+            val st =
+                PostgresJdbcDialect.prepare(
+                    "SELECT doc ? 'k', '?' -- ?\nFROM t WHERE x = :x",
+                    listOf(
+                        "x" to Cell.Int(1),
+                    ),
+                )
+            st.sql shouldBe "SELECT doc ?? 'k', '?' -- ?\nFROM t WHERE x = ?"
+        }
+
         test("only known types are cast") {
             castType("UUID") shouldBe "uuid"
             castType("int4") shouldBe "int4"

@@ -27,11 +27,12 @@ jacoco {
 }
 
 tasks.withType<Test>().configureEach {
-    useJUnitPlatform {
-        // Container tests start PostgreSQL, ClickHouse or the portal image and
-        // need Docker or Podman. Run them with `-Pdocker`.
-        if (!project.hasProperty("docker")) excludeTags("docker")
-    }
+    useJUnitPlatform()
+    // Container tests (Kotest tag "docker") start PostgreSQL, ClickHouse or the
+    // portal image and need Docker or Podman. `-Pdocker` runs them too.
+    systemProperty("kotest.tags", if (project.hasProperty("docker")) "" else "!docker")
+    // Timestamps with time zone are rendered in the JVM zone; pin it for stable tests.
+    systemProperty("user.timezone", "UTC")
     testLogging {
         events("failed", "skipped")
         exceptionFormat = TestExceptionFormat.FULL

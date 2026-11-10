@@ -107,31 +107,36 @@ class AccessPolicy(
 /** Failures of authentication and of loading grants. */
 sealed class AuthException(
     message: String,
-) : RuntimeException(message) {
+    cause: Throwable?,
+) : RuntimeException(message, cause) {
     /** Short, low-cardinality label used for metrics. */
     abstract val outcome: String
 
-    class InvalidCredentials : AuthException("invalid credentials") {
+    class InvalidCredentials(
+        cause: Throwable? = null,
+    ) : AuthException("invalid credentials", cause) {
         override val outcome = "invalid_credentials"
     }
 
-    class Disabled : AuthException("authentication is disabled") {
+    class Disabled : AuthException("authentication is disabled", null) {
         override val outcome = "not_enabled"
     }
 
-    class ProviderNotEnabled : AuthException("authentication provider is not enabled") {
+    class ProviderNotEnabled : AuthException("authentication provider is not enabled", null) {
         override val outcome = "not_enabled"
     }
 
     class Rejected(
         val reason: String,
-    ) : AuthException("authentication request rejected: $reason") {
+        cause: Throwable? = null,
+    ) : AuthException("authentication request rejected: $reason", cause) {
         override val outcome = "rejected"
     }
 
     class ProviderUnavailable(
         val reason: String,
-    ) : AuthException("authentication provider unavailable: $reason") {
+        cause: Throwable? = null,
+    ) : AuthException("authentication provider unavailable: $reason", cause) {
         override val outcome = "unavailable"
     }
 }

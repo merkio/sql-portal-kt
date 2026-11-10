@@ -1,0 +1,11 @@
+.git
+.github
+.gradle
+.kotlin
+.idea
+**/build
+*.md
+docs
+prometheus
+docker-compose.yml
+Dockerfile

@@ -26,6 +26,9 @@ import io.merkio.sqlportal.sqlexecutor.Statement
 import io.merkio.sqlportal.sqlexecutor.lookup
 import io.merkio.sqlportal.sqlexecutor.plainNumber
 import io.merkio.sqlportal.sqlexecutor.scanPlaceholders
+import io.merkio.sqlportal.sqlexecutor.skipBlockComment
+import io.merkio.sqlportal.sqlexecutor.skipLineComment
+import io.merkio.sqlportal.sqlexecutor.skipQuoted
 
 object PostgresDialect : Dialect {
     override val name = "postgres"
@@ -61,6 +64,63 @@ object PostgresDialect : Dialect {
             }
         return Statement(out.toString(), bind)
     }
+}
+
+/**
+ * The PostgreSQL dialect for JDBC drivers, which only know `?` placeholders.
+ * Every occurrence of a `:name` placeholder becomes its own `?` (repeated
+ * names bind their value again), and [paramTypes] are the server-declared
+ * types per occurrence. A literal `?` outside quotes and comments (jsonb
+ * operators) is written `??`, the JDBC escape for a question mark.
+ */
+object PostgresJdbcDialect : Dialect {
+    override val name = "postgres-jdbc"
+
+    override fun prepare(
+        sql: String,
+        params: List<Pair<String, Cell>>,
+        paramTypes: List<String>?,
+    ): Statement {
+        val body = trimStatement(sql)
+        val out = StringBuilder(body.length)
+        val bind = mutableListOf<Cell>()
+        var last = 0
+        for ((i, p) in scanPlaceholders(body).withIndex()) {
+            out.append(escapeQuestionMarks(body.substring(last, p.start)))
+            val value = lookup(params, p.name)
+            val cast = paramTypes?.getOrNull(i)?.let(::castType)
+            out.append(if (cast != null) "CAST(? AS $cast)" else "?")
+            bind += if (cast != null) value else textForm(value)
+            last = p.end
+        }
+        out.append(escapeQuestionMarks(body.substring(last)))
+        return Statement(out.toString(), bind)
+    }
+}
+
+/** Doubles `?` in code; quoted text and comments are copied as they are. */
+internal fun escapeQuestionMarks(segment: String): String {
+    if ('?' !in segment) return segment
+    val out = StringBuilder(segment.length + 2)
+    var i = 0
+    while (i < segment.length) {
+        val c = segment[i]
+        val end =
+            when {
+                c == '\'' || c == '"' -> skipQuoted(segment, i)
+                c == '-' && segment.getOrNull(i + 1) == '-' -> skipLineComment(segment, i)
+                c == '/' && segment.getOrNull(i + 1) == '*' -> skipBlockComment(segment, i)
+                else -> -1
+            }
+        if (end >= 0) {
+            out.append(segment, i, minOf(end, segment.length))
+            i = end
+        } else {
+            out.append(if (c == '?') "??" else c.toString())
+            i++
+        }
+    }
+    return out.toString()
 }
 
 /** The statement without surrounding blanks and trailing semicolons. */

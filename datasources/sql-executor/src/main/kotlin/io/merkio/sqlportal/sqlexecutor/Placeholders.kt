@@ -53,7 +53,7 @@ fun scanPlaceholders(sql: String): List<Placeholder> {
 }
 
 /** Index just past a quoted literal or identifier; a doubled quote is an escape. */
-internal fun skipQuoted(
+fun skipQuoted(
     sql: String,
     start: Int,
 ): Int {
@@ -73,7 +73,7 @@ internal fun skipQuoted(
 }
 
 /** Index of the newline ending a `--` comment (or the end of the text). */
-internal fun skipLineComment(
+fun skipLineComment(
     sql: String,
     start: Int,
 ): Int {
@@ -83,7 +83,7 @@ internal fun skipLineComment(
 }
 
 /** Index just past the end of a block comment. */
-internal fun skipBlockComment(
+fun skipBlockComment(
     sql: String,
     start: Int,
 ): Int {

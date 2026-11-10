@@ -74,7 +74,7 @@ class RemoteGrants(
     private fun unavailable(
         message: String,
         cause: Throwable? = null,
-    ) = AuthException.ProviderUnavailable(message).apply { cause?.let(::initCause) }
+    ) = AuthException.ProviderUnavailable(message, cause)
 
     private companion object {
         val JSON = Json { ignoreUnknownKeys = true }

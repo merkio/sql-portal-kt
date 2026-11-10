@@ -27,7 +27,9 @@ sealed class QueryException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause) {
-    class Timeout : QueryException("query timed out")
+    class Timeout(
+        cause: Throwable? = null,
+    ) : QueryException("query timed out", cause)
 
     class Database(
         val detail: String,
