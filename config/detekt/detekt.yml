@@ -18,8 +18,12 @@ style:
     active: false
   ReturnCount:
     max: 5
+  # Adapters translate several driver exception types at one boundary.
   ThrowsCount:
-    max: 4
+    max: 6
+  # Test fixtures hold one-line configuration snippets.
+  MaxLineLength:
+    excludes: ['**/test/**']
 
 naming:
   # Files group a small family of declarations (a sealed type and its helpers).
