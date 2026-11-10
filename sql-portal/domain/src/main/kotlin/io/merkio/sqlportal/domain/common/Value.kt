@@ -74,3 +74,6 @@ class DomainException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
+
+/** Shortest decimal text of a number without exponent; whole numbers print without a fraction (`20`, `0.5`). */
+fun formatNumber(value: Double): String = plainNumber(value)
