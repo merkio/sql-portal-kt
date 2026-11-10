@@ -1,0 +1,32 @@
+# Additions to detekt's default rule set (buildUponDefaultConfig = true).
+complexity:
+  # SQL scanners and request handlers branch by nature; keep a ceiling anyway.
+  CyclomaticComplexMethod:
+    allowedComplexity: 25
+  LongParameterList:
+    allowedConstructorParameters: 10
+  TooManyFunctions:
+    allowedFunctionsPerFile: 25
+    allowedFunctionsPerClass: 25
+    allowedFunctionsPerObject: 25
+  LongMethod:
+    allowedLines: 80
+
+style:
+  # Character scanners use `continue` to skip escapes.
+  LoopWithTooManyJumpStatements:
+    active: false
+  ReturnCount:
+    max: 5
+  ThrowsCount:
+    max: 4
+
+naming:
+  # Files group a small family of declarations (a sealed type and its helpers).
+  MatchingDeclarationName:
+    active: false
+
+exceptions:
+  # Adapters translate any driver failure into a domain error at the boundary.
+  TooGenericExceptionCaught:
+    active: false
