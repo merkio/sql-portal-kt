@@ -41,7 +41,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit and in-process integration tests (no Docker)
         run: ./gradlew test
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: test-reports
@@ -75,7 +75,7 @@ jobs:
               total = int(missed) + int(covered)
               print(f'| {kind.lower()} | {100 * int(covered) / total:.1f}% |')
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage

@@ -65,7 +65,7 @@ jobs:
           tar czf "dist/$name.tar.gz" "$name"
           zip -qr "dist/$name.zip" "$name"
           (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" && sha256sum "$name.zip" > "$name.zip.sha256")
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: distribution
           path: dist/*
