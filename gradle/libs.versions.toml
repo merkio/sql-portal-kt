@@ -26,7 +26,7 @@ kotest = "6.2.6"
 testcontainers = "2.0.5"
 ktlint-plugin = "14.2.0"
 detekt = "2.0.0-alpha.6"
-jackson = "3.2.4"
+jackson = "3.3.0"
 jacoco = "0.8.14"
 
 [libraries]
